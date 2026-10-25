@@ -26,13 +26,6 @@ mac:
 dmg:
   artifactName: ${name}-${version}-${arch}.${ext}
 
-win:
-  target: nsis
-nsis:
-  artifactName: ${name}-${version}-setup.${ext}
-  oneClick: false
-  allowToChangeInstallationDirectory: true
-
 linux:
   target:
     - AppImage

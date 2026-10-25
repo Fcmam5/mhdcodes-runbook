@@ -1,4 +1,4 @@
-# Builds the Windows, Linux and macOS installers with electron-builder. Pushing a tag like
+# Builds the Linux and macOS installers with electron-builder. Pushing a tag like
 # v1.2.0 also publishes them as a GitHub release; running it by hand only builds them.
 name: Release
 
@@ -17,8 +17,6 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-          - os: windows-latest
-            platform: win
           # one DMG per Mac architecture, each built on a runner of that architecture
           - os: macos-latest
             platform: mac
@@ -57,11 +55,6 @@ jobs:
         if: matrix.platform == 'linux'
         with:
           path: dist/runbook-*.deb
-          archive: false
-      - uses: actions/upload-artifact@v7
-        if: matrix.platform == 'win'
-        with:
-          path: dist/runbook-*-setup.exe
           archive: false
       - uses: actions/upload-artifact@v7
         if: matrix.platform == 'mac'

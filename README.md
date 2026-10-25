@@ -22,16 +22,16 @@ the binary. Packaging doesn't need it either, because electron-builder fetches i
 
 ## Scripts
 
-| Script           | Description                                                                            |
-| ---------------- | -------------------------------------------------------------------------------------- |
-| `pnpm dev`       | Run the app in development mode with HMR                                               |
-| `pnpm start`     | Preview the production build locally                                                   |
-| `pnpm build`     | Type-check and bundle main, preload, and renderer into `out/`                          |
-| `pnpm dist`      | Package installers for the current OS (`pnpm dist --mac`, `--win`, `--linux`, `--dir`) |
-| `pnpm typecheck` | Type-check with `tsc` (main/preload) and `svelte-check` (UI)                           |
-| `pnpm lint`      | Lint with oxlint, failing on warnings (`pnpm lint:fix` to auto-fix)                    |
-| `pnpm format`    | Format with oxfmt (`pnpm format:check` to verify only)                                 |
-| `pnpm check`     | Run the format check, lint, and type-check (use this in CI)                            |
+| Script           | Description                                                                   |
+| ---------------- | ----------------------------------------------------------------------------- |
+| `pnpm dev`       | Run the app in development mode with HMR                                      |
+| `pnpm start`     | Preview the production build locally                                          |
+| `pnpm build`     | Type-check and bundle main, preload, and renderer into `out/`                 |
+| `pnpm dist`      | Package installers for the current OS (`pnpm dist --mac`, `--linux`, `--dir`) |
+| `pnpm typecheck` | Type-check with `tsc` (main/preload) and `svelte-check` (UI)                  |
+| `pnpm lint`      | Lint with oxlint, failing on warnings (`pnpm lint:fix` to auto-fix)           |
+| `pnpm format`    | Format with oxfmt (`pnpm format:check` to verify only)                        |
+| `pnpm check`     | Run the format check, lint, and type-check (use this in CI)                   |
 
 Installers are written to `dist/`. `pnpm dist --dir` builds an unpacked app only, which is a quick smoke test.
 
@@ -44,12 +44,13 @@ the app compiles, and `pnpm dist` only when you need installers.
 
 ### Cross-platform packaging
 
+runbook targets Unix-like systems only: macOS and Linux. There is no Windows build.
+
 - **macOS `.dmg`** can only be built on macOS. It is signed ad hoc so it runs on Apple Silicon.
-- **Windows `.exe`** builds natively on Windows. Building it on Linux or macOS requires [Wine](https://www.winehq.org/).
 - **Linux `.deb` / AppImage** builds on Linux.
 
 Because of these limits, release builds run in CI (see below), one runner per platform.
-Real code signing (Apple Developer ID, Windows certificate) and notarization are not set up; see the
+Real code signing (Apple Developer ID) and notarization are not set up; see the
 [electron-builder docs](https://www.electron.build/code-signing) when you need them.
 
 ## CI and releases
@@ -58,7 +59,7 @@ Two GitHub Actions workflows live in `.github/workflows/`:
 
 - **`ci.yml`** runs on every push to `main` and every pull request. It checks formatting, lints, and runs `pnpm build`,
   which includes the type-check.
-- **`release.yml`** builds the installers on Linux (`.AppImage`, `.deb`), Windows (`.exe`), and macOS (one `.dmg` each
+- **`release.yml`** builds the installers on Linux (`.AppImage`, `.deb`) and macOS (one `.dmg` each
   for Apple Silicon and Intel). Each installer is attached to the run as its own download.
 
 To publish a release, push a version tag:
