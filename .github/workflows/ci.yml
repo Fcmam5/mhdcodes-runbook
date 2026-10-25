@@ -1,0 +1,25 @@
+# Checks formatting, lint and types, and builds the app, on every push to main and every pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          cache: true
+          require-lockfile: true
+      - run: pnpm format:check
+      - run: pnpm lint
+      # build runs typecheck first, then compiles into out/
+      - run: pnpm build

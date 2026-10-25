@@ -1,0 +1,57 @@
+# https://www.electron.build/configuration
+appId: com.codiume.runbook
+productName: Runbook
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+asar: true
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
+  # No Apple Developer ID, so sign ad hoc: Apple Silicon refuses to run unsigned code.
+  # The hardened runtime only matters for notarization, which needs a real ID.
+  identity: "-"
+  hardenedRuntime: false
+dmg:
+  artifactName: ${name}-${version}-${arch}.${ext}
+
+win:
+  target: nsis
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+  syncDesktopName: true
+  maintainer: MHD <m@codiume.com>
+  artifactName: ${name}-${version}-${arch}.${ext}
+deb:
+  # Replaces electron-builder's default list with what runbook needs. The first four cover
+  # every library the Electron binary links against (GTK pulls in the X11, ATK and cups libs).
+  # libasound2 alone is a virtual package on Ubuntu 24.04, where apt may pick an incompatible
+  # stand-in, so the real package comes first. Add libnotify4 if the app shows notifications.
+  depends:
+    - libgtk-3-0
+    - libnss3
+    - libasound2t64 | libasound2
+    - libgbm1
+    - libsecret-1-0 # keyring for the enableCookieEncryption fuse
+    - xdg-utils # xdg-open, used by shell.openExternal
+
+publish: null

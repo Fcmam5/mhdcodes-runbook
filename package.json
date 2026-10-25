@@ -1,0 +1,47 @@
+{
+  "name": "runbook",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runbook desktop app",
+  "homepage": "https://github.com/codiume/runbook",
+  "license": "MIT",
+  "author": {
+    "name": "MHD",
+    "email": "m@codiume.com"
+  },
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "install-electron && electron-vite dev --noSandbox",
+    "start": "install-electron && electron-vite preview --noSandbox",
+    "build": "pnpm typecheck && electron-vite build",
+    "dist": "pnpm build && electron-builder",
+    "typecheck": "tsc -b && svelte-check --tsconfig ./tsconfig.web.json --fail-on-warnings",
+    "lint": "oxlint --deny-warnings",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "24.19.2",
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "oxfmt": "0.74.0",
+    "oxlint": "1.89.0",
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.7",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.5"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.3.4",
+  "desktopName": "runbook.desktop",
+  "productName": "Runbook"
+}

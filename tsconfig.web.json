@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": [],
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.web.tsbuildinfo"
+  },
+  "include": ["src/renderer/src/**/*", "src/preload/api.ts"]
+}
