@@ -1,4 +1,4 @@
-# Builds the Linux and macOS installers with electron-builder. Pushing a tag like
+# Builds the Linux installers (AppImage and deb) with electron-builder. Pushing a tag like
 # v1.2.0 also publishes them as a GitHub release; running it by hand only builds them.
 name: Release
 
@@ -12,20 +12,7 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-          # one DMG per Mac architecture, each built on a runner of that architecture
-          - os: macos-latest
-            platform: mac
-          - os: macos-15-intel
-            platform: mac
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       # installs Node.js, the pnpm from packageManager in package.json, and the
@@ -42,24 +29,17 @@ jobs:
         run: pnpm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --no-git-checks
 
       - run: pnpm build
-      - run: pnpm exec electron-builder --${{ matrix.platform }}
+      - run: pnpm exec electron-builder --linux
 
       # one unzipped artifact per download, named after the file, so a run's page lists
       # them like a release does
       - uses: actions/upload-artifact@v7
-        if: matrix.platform == 'linux'
         with:
           path: dist/runbook-*.AppImage
           archive: false
       - uses: actions/upload-artifact@v7
-        if: matrix.platform == 'linux'
         with:
           path: dist/runbook-*.deb
-          archive: false
-      - uses: actions/upload-artifact@v7
-        if: matrix.platform == 'mac'
-        with:
-          path: dist/runbook-*.dmg
           archive: false
 
   release:
