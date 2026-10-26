@@ -148,7 +148,7 @@ Saving should change as little of the file as possible: the format's promise is 
    - If the file had frontmatter, write it back from `frontmatterRaw`. If `title` or `tags` changed, apply the changes with the `yaml` Document API so comments, key order, styles (e.g. flow lists `[a, b]`) and other keys survive untouched.
    - If the file had no frontmatter, write one only if `title` differs from the filename (without `.md`) or `tags` is non-empty. Write `title`, then `tags`.
 2. Cells are separated by exactly one blank line.
-3. Shell cells are written as ` ```<info> {id=<id>} `, using the cell's original `info` (e.g. `sh`, `bash title=x`). If the source itself contains a line starting with ` ``` `, use a longer fence (e.g. ` ```` `).
+3. Shell cells are written as ` ```<info> {id=<id>} `, using the cell's original `info` (e.g. `sh`, `bash title=x`). If the source itself contains a line starting with ` ``` `, use a longer fence (e.g. ` ```` `). If `info` contains a backtick, use a `~~~` fence instead, since backtick fences can't.
 4. Lines end with the notebook's `lineEnding`.
 5. File ends with a single trailing line ending.
 

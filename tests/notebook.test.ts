@@ -34,6 +34,8 @@ describe("round trip", () => {
     "non-bash-blocks.md",
     "sh-shell-info.md",
     "crlf.md",
+    "frontmatter-comments.md",
+    "empty.md",
   ])("%s is unchanged by a save", (name) => {
     const { text, notebook } = load(name);
     expect(serialize(notebook)).toBe(text);
@@ -179,6 +181,82 @@ describe("parse", () => {
     expect(notebook.cells.map((cell) => cell.source)).toEqual(["Body"]);
   });
 
+  it("keeps fences inside lists and blockquotes in the markdown cell", () => {
+    const { notebook } = load("containers.md");
+    expect(notebook.cells.map((cell) => cell.type)).toEqual([
+      "markdown",
+      "shell",
+      "shell",
+      "markdown",
+    ]);
+    expect(notebook.cells[0]?.source).toContain("   ```bash\n   sudo apt update\n   ```");
+    expect(notebook.cells[0]?.source).toContain("> ```bash\n> rm -rf /tmp/cache\n> ```");
+    expect(notebook.cells[3]?.source).toContain("    ```bash\n    echo indented four spaces");
+  });
+
+  it("accepts a top-level fence indented up to three spaces", () => {
+    const { notebook } = load("containers.md");
+    expect(shellCells(notebook).map((cell) => [cell.id, cell.source])).toEqual([
+      ["top00001", "echo top level"],
+      ["ind00003", "echo indented three spaces"],
+    ]);
+  });
+
+  it("accepts ~~~ fences, longer fences and longer closing fences", () => {
+    const { notebook } = load("nested-fences.md");
+    expect(shellCells(notebook).map((cell) => [cell.id, cell.info, cell.source])).toEqual([
+      ["nest0001", "bash", "cat > README.md <<'MD'\n```sh\nmake install\n```\nMD"],
+      ["tild0001", "sh", "cat <<'MD'\n```\ninside\n```\nMD"],
+      ["long0001", "bash", "echo closed by five"],
+    ]);
+  });
+
+  it("gives an unclosed shell fence the rest of the file", () => {
+    const { notebook } = load("unclosed-fence.md");
+    expect(notebook.cells.at(-1)).toMatchObject({
+      id: "open0001",
+      type: "shell",
+      source: "echo one\n\necho two",
+    });
+    expect(serialize(notebook).endsWith("echo two\n```\n")).toBe(true);
+  });
+
+  it("parses an empty file to an empty notebook", () => {
+    const { notebook } = load("empty.md");
+    expect(notebook).toMatchObject({ title: "empty", tags: [], frontmatterRaw: null, cells: [] });
+  });
+
+  it("reads a frontmatter-only file", () => {
+    const text = "---\ntitle: Only metadata\n---\n";
+    const notebook = parse(text, "/notebooks/x.md");
+    expect(notebook).toMatchObject({ title: "Only metadata", cells: [] });
+    expect(serialize(notebook)).toBe(text);
+    expect(serialize(parse("---\n---\n", "/notebooks/x.md"))).toBe("---\n---\n");
+  });
+
+  it("reads frontmatter with comments and a block list", () => {
+    const { notebook } = load("frontmatter-comments.md");
+    expect(notebook.title).toBe("Restart networking");
+    expect(notebook.tags).toEqual(["network", "systemd"]);
+  });
+
+  it("reads non-string scalars as written and a single scalar as one tag", () => {
+    const notebook = parse("---\ntitle: 1.10\ntags: audio\n---\n", "/notebooks/x.md");
+    expect(notebook.title).toBe("1.10");
+    expect(notebook.tags).toEqual(["audio"]);
+    expect(parse("---\ntags: [2024, true, ~]\n---\n", "/notebooks/x.md").tags).toEqual([
+      "2024",
+      "true",
+    ]);
+  });
+
+  it("falls back to the filename for an empty title", () => {
+    expect(parse("---\ntitle:\ntags:\n---\n", "/notebooks/x.md")).toMatchObject({
+      title: "x",
+      tags: [],
+    });
+  });
+
   it("detects LF when the file has no line break at all", () => {
     expect(parse("just text", "/notebooks/x.md").lineEnding).toBe("\n");
   });
@@ -220,6 +298,55 @@ describe("serialize", () => {
     const { text, notebook } = load("frontmatter-simple.md");
     notebook.tags = ["audio"];
     expect(serialize(notebook)).toBe(text.replace("tags: [audio, pipewire]", "tags: [audio]"));
+  });
+
+  it("keeps comments, quoting and key order when the title changes", () => {
+    const { text, notebook } = load("frontmatter-comments.md");
+    notebook.title = "Restart NetworkManager";
+    expect(serialize(notebook)).toBe(
+      text.replace('"Restart networking"', '"Restart NetworkManager"'),
+    );
+  });
+
+  it("keeps a block tag list a block list when tags change", () => {
+    const { text, notebook } = load("frontmatter-comments.md");
+    notebook.tags = ["network"];
+    expect(serialize(notebook)).toBe(text.replace("  - systemd\n", ""));
+  });
+
+  it("keeps a comment after a flow tag list when tags change", () => {
+    const notebook = parse("---\ntags: [a] # why\n---\n", "/notebooks/x.md");
+    notebook.tags = ["a", "b"];
+    expect(serialize(notebook)).toBe("---\ntags: [a, b] # why\n---\n");
+  });
+
+  it("turns a single-scalar tag into a flow list when tags change", () => {
+    const notebook = parse("---\ntags: audio\n---\n", "/notebooks/x.md");
+    notebook.tags = ["audio", "pipewire"];
+    expect(serialize(notebook)).toBe("---\ntags: [audio, pipewire]\n---\n");
+  });
+
+  it("quotes a new title that would otherwise read back as a number", () => {
+    const notebook = parse("---\ntitle: 2024\n---\n", "/notebooks/x.md");
+    notebook.title = "2025";
+    const saved = serialize(notebook);
+    expect(saved).toBe('---\ntitle: "2025"\n---\n');
+    expect(parse(saved, notebook.path).title).toBe("2025");
+  });
+
+  it("writes ~~~ and backtick fences longer than any fence in the source", () => {
+    const { notebook } = load("nested-fences.md");
+    const saved = serialize(notebook);
+    expect(saved).toContain("````bash {id=nest0001}\n");
+    expect(saved).toContain("````sh {id=tild0001}\n");
+    expect(saved).toContain("```bash {id=long0001}\necho closed by five\n```\n");
+  });
+
+  it("writes a ~~~ fence when the info string contains a backtick", () => {
+    const text = "~~~bash title=`x` {id=abcdabcd}\necho\n~~~~\n";
+    const saved = serialize(parse(text, "/notebooks/x.md"));
+    expect(saved).toBe("~~~bash title=`x` {id=abcdabcd}\necho\n~~~\n");
+    expect(shellCells(parse(saved, "/notebooks/x.md"))).toHaveLength(1);
   });
 
   it("writes new shell cells as bash", () => {

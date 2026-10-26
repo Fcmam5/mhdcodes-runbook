@@ -3,7 +3,8 @@
 
 import MarkdownIt from "markdown-it";
 import { nanoid } from "nanoid";
-import { Document, isMap, isScalar, isSeq, parseDocument } from "yaml";
+import { Document, isMap, isNode, isScalar, isSeq, parseDocument } from "yaml";
+import type { Scalar } from "yaml";
 import type { Cell, CellType, Notebook } from "./types";
 
 const SHELL_LANGUAGES = new Set(["bash", "sh", "shell"]);
@@ -126,19 +127,22 @@ function trimBlankLines(lines: string[]): string[] {
 }
 
 function serializeShellCell(cell: Cell): string {
-  const fence = fenceFor(cell.source);
-  const opening = `${fence}${cell.info ?? DEFAULT_SHELL_INFO} {id=${cell.id}}`;
+  const info = cell.info ?? DEFAULT_SHELL_INFO;
+  const fence = fenceFor(cell.source, info);
+  const opening = `${fence}${info} {id=${cell.id}}`;
   return cell.source === "" ? `${opening}\n${fence}` : `${opening}\n${cell.source}\n${fence}`;
 }
 
-// A fence longer than any backtick fence inside the source, so the source can't close it early.
-function fenceFor(source: string): string {
+// A fence longer than any fence of the same character inside the source, so the source
+// can't close it early. Backticks unless the info string has one, which only ~~~ allows.
+function fenceFor(source: string, info: string): string {
+  const char = info.includes("`") ? "~" : "`";
   let length = 3;
   for (const line of source.split("\n")) {
-    const run = /^ {0,3}(`{3,})/.exec(line)?.[1];
-    if (run) length = Math.max(length, run.length + 1);
+    const run = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (run?.startsWith(char)) length = Math.max(length, run.length + 1);
   }
-  return "`".repeat(length);
+  return char.repeat(length);
 }
 
 // --- Frontmatter -------------------------------------------------------------
@@ -159,15 +163,27 @@ function parseFrontmatter(raw: string): Document.Parsed | null {
 // with toJS(), so aliases are never expanded (a few nested aliases can expand to
 // millions of values). An alias used as the title or a tag is ignored. Other keys
 // aren't read: they stay in frontmatterRaw and survive saves untouched.
+// Non-string scalars are read as written (`title: 2024`), and a single scalar
+// counts as one tag (`tags: audio`).
 function readFrontmatter(doc: Document | null, path: string): FrontmatterFields {
   const fields: FrontmatterFields = { title: fileStem(path), tags: [] };
   if (doc === null) return fields;
 
-  const title = doc.get("title");
-  if (typeof title === "string") fields.title = title;
+  const title = doc.get("title", true);
+  if (isText(title)) fields.title = scalarText(title);
   const tags = doc.get("tags", true);
-  if (isSeq(tags)) fields.tags = tags.items.filter(isScalar).map((item) => String(item.value));
+  if (isSeq(tags)) fields.tags = tags.items.filter(isText).map(scalarText);
+  else if (isText(tags)) fields.tags = [scalarText(tags)];
   return fields;
+}
+
+function isText(node: unknown): node is Scalar {
+  return isScalar(node) && node.value !== null && typeof node.value !== "object";
+}
+
+// The scalar as written, so `version: 1.10` stays "1.10" rather than becoming 1.1.
+function scalarText(node: Scalar): string {
+  return typeof node.value === "string" ? node.value : (node.source ?? String(node.value));
 }
 
 // Returns the YAML text between the --- lines, or null when no frontmatter should be written.
@@ -192,7 +208,16 @@ function serializeFrontmatter(notebook: Notebook): string | null {
 
   // Edit the document in place so comments, key order, styles and other keys survive.
   if (titleChanged) doc.set("title", title);
-  if (tagsChanged) doc.set("tags", doc.createNode(tags, { flow: true }));
+  if (tagsChanged) {
+    // Keep a block list a block list; a missing or single-scalar entry becomes `[a, b]`.
+    const previous = doc.get("tags", true);
+    const next = doc.createNode(tags, { flow: !isSeq(previous) || previous.flow === true });
+    if (isNode(previous)) {
+      next.commentBefore = previous.commentBefore ?? null;
+      next.comment = previous.comment ?? null;
+    }
+    doc.set("tags", next);
+  }
   return doc.toString(YAML_OPTIONS).replace(/\n$/, "");
 }
 
