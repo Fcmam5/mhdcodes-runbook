@@ -310,7 +310,7 @@ All main-process handlers must validate that any `path` argument resolves inside
 ## 8. Storage & settings
 
 - Default notebooks folder: `~/Runbooks` (create it on first launch if missing).
-- Settings live in `app.getPath('userData')/settings.json`.
+- Settings live in `app.getPath('userData')/settings.json`. `userData` is named after the app ID, not the product name: `~/.config/com.codiume.runbook`.
 - On first launch, if the folder is empty, create one sample notebook (`Welcome.md`) demonstrating markdown cells, a `cd` + `pwd` persistence example, and an `echo` with colors.
 - **Autosave:** debounce 500 ms after the last edit; also save on notebook switch and window close. Writes are atomic: write `<file>.tmp`, then `fs.rename`.
 - **External changes:** on window focus, re-scan the folder for the sidebar. If the open notebook's file `mtime` changed and there are no unsaved local edits, reload it silently; if there are unsaved edits, show a banner: "This file changed on disk. Reload / Keep mine."

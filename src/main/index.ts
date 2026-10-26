@@ -31,6 +31,12 @@ function createWindow(): void {
   }
 }
 
+// Name the data folder after the app ID (~/.config/com.codiume.runbook) rather than
+// the generic product name. Must match appId in electron-builder.yml, and must run
+// before anything touches userData, including the single-instance lock below.
+const APP_ID = "com.codiume.runbook";
+app.setPath("userData", join(app.getPath("appData"), APP_ID));
+
 // Block in-page navigation away from the app.
 app.on("web-contents-created", (_event, contents) => {
   contents.on("will-navigate", (event, url) => {
