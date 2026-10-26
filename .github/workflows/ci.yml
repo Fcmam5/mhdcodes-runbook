@@ -1,4 +1,4 @@
-# Checks formatting, lint and types, and builds the app, on every push to main and every pull request.
+# Checks formatting, lint and types, runs the tests, and builds the app, on every push to main and every pull request.
 name: CI
 
 on:
@@ -21,5 +21,6 @@ jobs:
           require-lockfile: true
       - run: pnpm format:check
       - run: pnpm lint
+      - run: pnpm test
       # build runs typecheck first, then compiles into out/
       - run: pnpm build

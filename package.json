@@ -21,7 +21,8 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck"
+    "test": "vitest run",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.1",
@@ -36,7 +37,8 @@
     "svelte-check": "4.7.7",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vite": "8.3.5"
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   },
   "engines": {
     "node": ">=24"
