@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, shell } from "electron";
+import { externalUrl } from "../shared/links";
+import { registerIpc } from "./ipc";
+import { ensureNotebooksDir } from "./notebooks";
+import { defaultSettings, loadSettings } from "./settings";
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -17,9 +21,10 @@ function createWindow(): void {
 
   win.once("ready-to-show", () => win.show());
 
-  // Open external links in the default browser instead of new Electron windows.
+  // Open http(s) links in the default browser instead of new Electron windows.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https:")) void shell.openExternal(url);
+    const external = externalUrl(url);
+    if (external) void shell.openExternal(external);
     return { action: "deny" };
   });
 
@@ -55,8 +60,19 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
-  void app.whenReady().then(() => {
-    ipcMain.handle("app:get-version", () => app.getVersion());
+  void app.whenReady().then(async () => {
+    // Any failure here must still end in a window: a windowless app never quits and
+    // keeps the single-instance lock, so the app could not be started again.
+    const settings = await loadSettings(join(app.getPath("userData"), "settings.json")).catch(
+      (error: unknown) => {
+        console.error("Could not load settings, using defaults:", error);
+        return defaultSettings();
+      },
+    );
+    await ensureNotebooksDir(settings.notebooksDir).catch((error: unknown) => {
+      console.error("Could not prepare the notebooks folder:", error);
+    });
+    registerIpc(settings);
 
     createWindow();
   });

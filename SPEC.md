@@ -303,7 +303,7 @@ interface Api {
 }
 ```
 
-All main-process handlers must validate that any `path` argument resolves inside the configured notebooks folder (use `path.resolve` + prefix check) and ends in `.md`. Reject anything else.
+All main-process handlers must validate that any `path` argument resolves to a file directly inside the configured notebooks folder (use `path.resolve` and compare its `dirname` with the folder) and ends in `.md`. Reject anything else. Subfolders are not allowed: a symlinked subfolder could lead anywhere on disk.
 
 ---
 

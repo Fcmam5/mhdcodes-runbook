@@ -29,3 +29,15 @@ export interface CellRunStatus {
 }
 
 export type SessionState = "starting" | "ready" | "busy" | "dead";
+
+// A notebook as listed in the sidebar, without its cells.
+export interface NotebookSummary {
+  path: string;
+  title: string;
+  tags: string[];
+  mtime: number; // epoch ms
+}
+
+export interface Settings {
+  notebooksDir: string; // absolute path
+}

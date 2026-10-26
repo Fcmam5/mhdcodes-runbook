@@ -1,1 +1,87 @@
 @import "tailwindcss";
+
+/* Rendered markdown cells. Tailwind's preflight resets these elements, so restyle them. */
+.markdown {
+  line-height: 1.65;
+
+  & > * + * {
+    margin-top: 0.75em;
+  }
+  & h1 {
+    font-size: 1.5em;
+    font-weight: 600;
+  }
+  & h2 {
+    font-size: 1.25em;
+    font-weight: 600;
+  }
+  & h3,
+  & h4,
+  & h5,
+  & h6 {
+    font-weight: 600;
+  }
+  & a {
+    color: var(--color-blue-600);
+    text-decoration: underline;
+  }
+  & ul {
+    list-style: disc;
+    padding-left: 1.5em;
+  }
+  & ol {
+    list-style: decimal;
+    padding-left: 1.5em;
+  }
+  & blockquote {
+    border-left: 3px solid var(--color-zinc-300);
+    padding-left: 1em;
+    color: var(--color-zinc-500);
+  }
+  & code,
+  & pre {
+    font-family: "Ubuntu Mono", "DejaVu Sans Mono", monospace;
+  }
+  & :not(pre) > code {
+    border-radius: 4px;
+    background: var(--color-zinc-100);
+    padding: 0.1em 0.3em;
+  }
+  & pre {
+    overflow-x: auto;
+    border-radius: 8px;
+    background: var(--color-zinc-100);
+    padding: 0.75em 1em;
+  }
+  & hr {
+    border-color: var(--color-zinc-200);
+  }
+  & table {
+    border-collapse: collapse;
+  }
+  & th,
+  & td {
+    border: 1px solid var(--color-zinc-200);
+    padding: 0.25em 0.75em;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .markdown {
+    & a {
+      color: var(--color-blue-400);
+    }
+    & blockquote {
+      border-color: var(--color-zinc-700);
+    }
+    & :not(pre) > code,
+    & pre {
+      background: var(--color-zinc-900);
+    }
+    & hr,
+    & th,
+    & td {
+      border-color: var(--color-zinc-800);
+    }
+  }
+}
