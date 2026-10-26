@@ -84,7 +84,6 @@ export interface Notebook {
   path: string; // absolute path to .md file
   title: string; // from frontmatter, fallback = filename
   tags: string[]; // from frontmatter, default []
-  extraFrontmatter: Record<string, unknown>; // unknown keys, preserved on save
   frontmatterRaw: string | null; // original YAML text (without the --- lines), null if none
   lineEnding: "\n" | "\r\n"; // detected from the file; new files use "\n"
   cells: Cell[];
@@ -134,7 +133,7 @@ Saving should change as little of the file as possible: the format's promise is 
 
 ### Parsing rules (`parse(text, path): Notebook`)
 
-1. Optional YAML frontmatter at the very top between `---` lines. `title` and `tags` map to fields; all other keys go into `extraFrontmatter`. Keep the original YAML text in `frontmatterRaw`.
+1. Optional YAML frontmatter at the very top between `---` lines. `title` and `tags` map to fields. Keep the original YAML text in `frontmatterRaw`; other keys are not parsed into the model and survive saves through it.
 2. A **shell cell** is a fenced code block whose info string language is `bash`, `sh`, or `shell`. Accept both ``` and ~~~ fences, with fence length ≥ 3, matching the opening fence's character and length for the close.
 3. Only **top-level** fences become shell cells: the opening fence is indented at most 3 spaces and is not inside a list item or blockquote (CommonMark container blocks). Fences inside lists or quotes stay part of the surrounding markdown cell.
 4. The fence info string may contain `{id=XXXX}`. If it's missing, generate an ID (it will be written on the next save). The rest of the info string is kept in `Cell.info`.
@@ -146,8 +145,8 @@ Saving should change as little of the file as possible: the format's promise is 
 ### Serialization rules (`serialize(notebook): string`)
 
 1. **Frontmatter:**
-   - If the file had frontmatter, write it back from `frontmatterRaw`. If `title`, `tags`, or `extraFrontmatter` changed, apply the changes with the `yaml` Document API so comments, key order, and styles (e.g. flow lists `[a, b]`) of untouched entries survive.
-   - If the file had no frontmatter, write one only if `title` differs from the filename (without `.md`), or `tags`/`extraFrontmatter` are non-empty. Write `title`, `tags`, then extra keys.
+   - If the file had frontmatter, write it back from `frontmatterRaw`. If `title` or `tags` changed, apply the changes with the `yaml` Document API so comments, key order, styles (e.g. flow lists `[a, b]`) and other keys survive untouched.
+   - If the file had no frontmatter, write one only if `title` differs from the filename (without `.md`) or `tags` is non-empty. Write `title`, then `tags`.
 2. Cells are separated by exactly one blank line.
 3. Shell cells are written as ` ```<info> {id=<id>} `, using the cell's original `info` (e.g. `sh`, `bash title=x`). If the source itself contains a line starting with ` ``` `, use a longer fence (e.g. ` ```` `).
 4. Lines end with the notebook's `lineEnding`.
@@ -438,7 +437,7 @@ The scaffolding is already Linux-only: `electron-builder.yml` targets `deb` and 
 
 ## 11. Notes for the implementer (Claude Code)
 
-- Keep `src/shared/notebook-format.ts` pure (no Node or Electron imports) so it's trivially testable. `markdown-it`'s token stream (fence tokens with `level` and line `map`) is a convenient way to find top-level fences (§5 rule 3).
+- Keep `src/shared/notebook.ts` pure (no Node or Electron imports) so it's trivially testable. `markdown-it`'s token stream (fence tokens with `level` and line `map`) is a convenient way to find top-level fences (§5 rule 3).
 - Keep `ShellSession` free of Electron imports; it emits events (`output`, `status`, `state`) that `ipc.ts` forwards to the renderer. This keeps it testable in plain Node.
 - Batch output events: coalesce pty data and forward to the renderer at most every ~16 ms per cell to avoid flooding IPC on noisy commands.
 - **`node-pty` is a native module:**

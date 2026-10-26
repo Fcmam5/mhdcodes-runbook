@@ -27,6 +27,7 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@tailwindcss/vite": "4.3.3",
+    "@types/markdown-it": "14.2.0",
     "@types/node": "24.19.2",
     "electron": "45.0.0",
     "electron-builder": "26.18.0",
@@ -45,5 +46,10 @@
   },
   "packageManager": "pnpm@12.3.4",
   "desktopName": "runbook.desktop",
-  "productName": "Runbook"
+  "productName": "Runbook",
+  "dependencies": {
+    "markdown-it": "15.0.3",
+    "nanoid": "6.0.2",
+    "yaml": "2.9.1"
+  }
 }
