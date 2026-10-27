@@ -70,6 +70,15 @@ describe("run store", () => {
     expect(Object.keys(get(runs)["/a.md"]?.cells ?? {})).toEqual(["c2"]);
   });
 
+  it("changes nothing when forgetting a cell it has no entry for", () => {
+    const runs = createRunStore();
+    const seen: unknown[] = [];
+    const stop = runs.subscribe((value) => seen.push(value));
+    runs.forgetCell("/a.md", "never-ran");
+    stop();
+    expect(seen).toEqual([{}]);
+  });
+
   it("gives subscribers a new value on each change", () => {
     const runs = createRunStore();
     const seen: unknown[] = [];

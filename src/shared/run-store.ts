@@ -2,7 +2,7 @@
 // (SPEC §6.6). It lives outside the components, so it survives switching notebooks and
 // keeps taking events for notebooks that aren't shown. Pure: tested in plain Node.
 
-import { writable, type Readable } from "svelte/store";
+import { get, writable, type Readable } from "svelte/store";
 import type { CellRunStatus, SessionEnd, SessionState } from "./types";
 
 export interface CellRun {
@@ -33,7 +33,8 @@ export interface RunStore extends Readable<RunsByNotebook> {
 }
 
 export function createRunStore(): RunStore {
-  const { subscribe, update } = writable<RunsByNotebook>({});
+  const store = writable<RunsByNotebook>({});
+  const { subscribe, update } = store;
 
   // Each change makes new objects along the path, so subscribers see a new value.
   function updateNotebook(path: string, change: (runs: NotebookRuns) => NotebookRuns): void {
@@ -60,11 +61,15 @@ export function createRunStore(): RunStore {
     setRequested: (path, cellId, requested) => updateCell(path, cellId, { requested }),
     setError: (path, cellId, error) => updateCell(path, cellId, { error }),
     dismissEnd: (path) => updateNotebook(path, (runs) => ({ ...runs, end: null })),
-    forgetCell: (path, cellId) =>
+    forgetCell(path, cellId) {
+      // Nothing to drop for a cell that never ran: don't create an empty entry for
+      // its notebook, or tell subscribers about a change that didn't happen.
+      if (!get(store)[path]?.cells[cellId]) return;
       updateNotebook(path, (runs) => {
         const { [cellId]: _forgotten, ...cells } = runs.cells;
         return { ...runs, cells };
-      }),
+      });
+    },
   };
 }
 
