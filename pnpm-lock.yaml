@@ -115,6 +115,9 @@ importers:
       nanoid:
         specifier: 6.0.2
         version: 6.0.2
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
       yaml:
         specifier: 2.9.1
         version: 2.9.1
@@ -1780,6 +1783,9 @@ packages:
     resolution: {integrity: sha512-GuvqvtrOk+AC27RidBxBsMzVNkwNl7PjHgc4NXbmdvSVLgIUjpaqcG1FjNRYnt2Yn9Ytq+Ln37XsBaglUcte/w==}
     engines: {node: '>=22.12.0'}
 
+  node-addon-api@7.1.1:
+    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
+
   node-api-version@0.2.1:
     resolution: {integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==}
 
@@ -1790,6 +1796,9 @@ packages:
 
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
+
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   node-releases@2.0.60:
     resolution: {integrity: sha512-OmO8+GM1JUZqXET720VrJCwkjUCXmCMQm0Z3UDDRbfNLHS4NEAvY60j5jiFv0tkKw2PNNlqOLhahVmwJIOLDIQ==}
@@ -3840,6 +3849,8 @@ snapshots:
     dependencies:
       semver: 7.7.4
 
+  node-addon-api@7.1.1: {}
+
   node-api-version@0.2.1:
     dependencies:
       semver: 7.7.4
@@ -3858,6 +3869,10 @@ snapshots:
       which: 6.0.1
 
   node-int64@0.4.0: {}
+
+  node-pty@1.1.0:
+    dependencies:
+      node-addon-api: 7.1.1
 
   node-releases@2.0.60: {}
 

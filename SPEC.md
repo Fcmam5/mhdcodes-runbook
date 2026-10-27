@@ -169,7 +169,8 @@ One `ShellSession` per notebook, created lazily on the first run. See §6.6 for 
 - **Environment:** build it explicitly with a pure, unit-tested function `buildShellEnv(env)`, starting from `process.env`:
   - Remove variables Electron and the dev tooling add: `CHROME_DESKTOP`, `FC_FONTATIONS`, `NO_AT_BRIDGE`, `GDK_BACKEND`, and every `ELECTRON_*`.
   - Remove the ones node-pty strips by default (it stops doing so when given a custom env): `TMUX`, `TMUX_PANE`, `STY`, `WINDOW`, `WINDOWID`, `TERMCAP`, `COLUMNS`, `LINES`.
-  - When running from an AppImage (`APPIMAGE` is set): remove `APPDIR`, `APPIMAGE`, `ARGV0`, `OWD`, and strip entries under `$APPDIR` from `PATH`, `LD_LIBRARY_PATH`, `XDG_DATA_DIRS`, and `GSETTINGS_SCHEMA_DIR`. Drop any of these that end up empty. (The AppImage launcher prepends its own paths; left in place, `LD_LIBRARY_PATH` would make user commands load the AppImage's bundled libraries.)
+  - Remove the ones the AppImage runtime sets: `APPDIR`, `APPIMAGE`, `ARGV0`, `OWD`.
+  - When running from an AppImage (`APPIMAGE` is set): strip entries under `$APPDIR` from every colon-separated variable (`PATH`, `LD_LIBRARY_PATH`, `XDG_DATA_DIRS`, `GSETTINGS_SCHEMA_DIR` and whatever else the AppRun prepends to). Drop any that end up empty. (The AppImage launcher prepends its own paths; left in place, `LD_LIBRARY_PATH` would make user commands load the AppImage's bundled libraries.)
   - Set `TERM=xterm-256color`.
 - Note: when launched from a desktop entry, Electron's `process.env` may lack the user's login PATH. The rcfile sources the user's files, which fixes this for interactive bash.
 
@@ -232,7 +233,7 @@ Why this shape (verified against real bash under a pty):
 
 1. Wait for the `rb-ready` marker before marking the session `ready`. Discard all output before it (rc noise, MOTD). If it doesn't arrive within **10 s**, kill the pty, mark the session `dead`, and show a notice: "Shell didn't start. Your ~/.bashrc may exec another shell or wait for input." Include the first lines of the startup output to help debugging.
 2. To run a cell:
-   - Write the cell source to a temp file `<os.tmpdir()>/runbook/<sessionId>/<runId>.sh` (mode 0600). `runId = nanoid(8)`.
+   - Write the cell source to a temp file `<tempRoot>/<sessionId>/<runId>.sh` (mode 0600; session folder 0700). `tempRoot` is created once per app run with `mkdtemp(<os.tmpdir()>/runbook-)` (see DECISIONS.md). `runId = nanoid(8)`.
    - Write the line `__rb_run <runId> <tmpPath>\n` to the pty. Because echo is off, this line is not displayed.
    - Using `source` (not a subshell) is what makes `cd`/`export`/aliases persist.
 3. Parse the pty output stream for OSC 777 markers, `ESC ] 777 ; ... BEL`.
@@ -420,7 +421,7 @@ The scaffolding is already Linux-only: `electron-builder.yml` targets `deb` and 
   - A `.bashrc` that never finishes → session `dead` after the 10 s ready timeout (use a test rcfile, not the user's).
   - No OSC marker bytes appear in forwarded output.
   - `buildShellEnv` unit tests: Electron/dev variables removed; AppImage variables and path entries stripped; unrelated variables untouched.
-- ✅ All session tests pass reliably (run the suite 5 times locally without flakes, e.g. `vitest run --repeat 4`).
+- ✅ All session tests pass reliably (run the suite 5 times locally without flakes, e.g. `vitest run --repeats 4`).
 
 ### M3 — Notebook UI
 
