@@ -62,6 +62,14 @@ describe("run store", () => {
     });
   });
 
+  it("drops a deleted cell's entry and keeps the others", () => {
+    const runs = createRunStore();
+    runs.onStatus({ notebookPath: "/a.md", status: { cellId: "c1", state: "success" } });
+    runs.onStatus({ notebookPath: "/a.md", status: { cellId: "c2", state: "failed" } });
+    runs.forgetCell("/a.md", "c1");
+    expect(Object.keys(get(runs)["/a.md"]?.cells ?? {})).toEqual(["c2"]);
+  });
+
   it("gives subscribers a new value on each change", () => {
     const runs = createRunStore();
     const seen: unknown[] = [];

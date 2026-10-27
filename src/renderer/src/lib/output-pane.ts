@@ -102,6 +102,14 @@ export class OutputPane {
     this.focusOwner = null;
   }
 
+  // Frees the pane for good, when its cell is deleted.
+  dispose(): void {
+    this.resizeObserver.disconnect();
+    this.terminal.dispose();
+    this.root.remove();
+    this.focusOwner = null;
+  }
+
   // The size a program in the pane should assume: its full width, and the rows it
   // shows once grown to its height limit.
   get size(): PaneSize {

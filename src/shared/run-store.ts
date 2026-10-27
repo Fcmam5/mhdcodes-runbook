@@ -28,6 +28,8 @@ export interface RunStore extends Readable<RunsByNotebook> {
   setRequested(notebookPath: string, cellId: string, requested: boolean): void;
   setError(notebookPath: string, cellId: string, error: string | null): void;
   dismissEnd(notebookPath: string): void;
+  // Drops a deleted cell's entry.
+  forgetCell(notebookPath: string, cellId: string): void;
 }
 
 export function createRunStore(): RunStore {
@@ -58,6 +60,11 @@ export function createRunStore(): RunStore {
     setRequested: (path, cellId, requested) => updateCell(path, cellId, { requested }),
     setError: (path, cellId, error) => updateCell(path, cellId, { error }),
     dismissEnd: (path) => updateNotebook(path, (runs) => ({ ...runs, end: null })),
+    forgetCell: (path, cellId) =>
+      updateNotebook(path, (runs) => {
+        const { [cellId]: _forgotten, ...cells } = runs.cells;
+        return { ...runs, cells };
+      }),
   };
 }
 

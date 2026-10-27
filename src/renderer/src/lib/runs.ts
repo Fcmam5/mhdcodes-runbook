@@ -14,6 +14,10 @@ export const runs = createRunStore();
 const panes = new Map<string, Map<string, OutputPane>>();
 // Cells whose Stop came before their run request reached main (see runCell).
 const stoppedEarly = new Set<string>();
+// Deleted cells. Their run may still be ending, or a background job they started may
+// still print; their events are dropped so nothing is recreated for them. Cell IDs
+// are never reused, so the set only grows by one per deleted cell that had run.
+const forgotten = new Set<string>();
 
 // The store's latest value, for the checks on every keystroke and output chunk.
 let latest: RunsByNotebook = {};
@@ -32,6 +36,18 @@ function key(notebookPath: string, cellId: string): string {
 // The cell's pane, if it has run in this window.
 export function existingPane(notebookPath: string, cellId: string): OutputPane | undefined {
   return panes.get(notebookPath)?.get(cellId);
+}
+
+// Frees everything kept for a deleted cell: its pane and its run-store entry.
+export function forgetCell(notebookPath: string, cellId: string): void {
+  forgotten.add(key(notebookPath, cellId));
+  existingPane(notebookPath, cellId)?.dispose();
+  panes.get(notebookPath)?.delete(cellId);
+  runs.forgetCell(notebookPath, cellId);
+}
+
+function isForgotten(notebookPath: string, cellId: string): boolean {
+  return forgotten.has(key(notebookPath, cellId));
 }
 
 export function paneFor(notebookPath: string, cellId: string): OutputPane {
@@ -56,6 +72,7 @@ export function paneFor(notebookPath: string, cellId: string): OutputPane {
 export function trackRuns(): void {
   window.api.onCellStatus((event) => {
     const { cellId, state } = event.status;
+    if (isForgotten(event.notebookPath, cellId)) return;
     const pane =
       state === "running"
         ? paneFor(event.notebookPath, cellId)
@@ -66,6 +83,7 @@ export function trackRuns(): void {
     runs.onStatus(event);
   });
   window.api.onCellOutput(({ notebookPath, cellId, data }) => {
+    if (isForgotten(notebookPath, cellId)) return;
     const pane = existingPane(notebookPath, cellId);
     pane?.write(data);
     // A running cell may be waiting for input (a password, [Y/n]).
@@ -90,16 +108,17 @@ export async function runCell(notebookPath: string, cellId: string, source: stri
     if (stoppedEarly.has(id)) return;
     await window.api.runCell(notebookPath, cellId, source);
   } catch (cause) {
-    runs.setError(notebookPath, cellId, messageOf(cause));
+    if (!isForgotten(notebookPath, cellId)) runs.setError(notebookPath, cellId, messageOf(cause));
   } finally {
     stoppedEarly.delete(id);
-    runs.setRequested(notebookPath, cellId, false);
+    // The cell may have been deleted while its run went on.
+    if (!isForgotten(notebookPath, cellId)) runs.setRequested(notebookPath, cellId, false);
   }
 }
 
 export function stopCell(notebookPath: string, cellId: string): void {
   stoppedEarly.add(key(notebookPath, cellId));
   window.api.cancelCell(notebookPath, cellId).catch((cause: unknown) => {
-    runs.setError(notebookPath, cellId, messageOf(cause));
+    if (!isForgotten(notebookPath, cellId)) runs.setError(notebookPath, cellId, messageOf(cause));
   });
 }

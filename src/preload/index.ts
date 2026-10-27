@@ -22,6 +22,8 @@ const api: Api = {
   readNotebook: (path) => ipcRenderer.invoke("notebooks:read", path),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveNotebook: (notebook) => ipcRenderer.invoke("notebooks:save", notebook),
+  // A request and reply, not a channel(): main waits for exactly one "flushed" reply,
+  // sent once the callback's saves settle. Register a single handler (saveOnClose).
   onFlushRequest: (callback) => {
     ipcRenderer.on("notebooks:flush", () => {
       // Close even if saving failed: the user would otherwise be stuck in the window.

@@ -5,7 +5,7 @@
   import { statusLine } from "../../../shared/status";
   import type { Cell } from "../../../shared/types";
   import { shellEditor } from "../lib/codemirror";
-  import { existingPane, paneFor, runCell, runs, stopCell } from "../lib/runs";
+  import { existingPane, forgetCell, paneFor, runCell, runs, stopCell } from "../lib/runs";
   import CellMenu from "./CellMenu.svelte";
 
   interface Props {
@@ -44,16 +44,18 @@
 
   function remove(): void {
     if (active) stopCell(notebookPath, cell.id);
+    // Its pane would otherwise stay in memory until the window closes.
+    forgetCell(notebookPath, cell.id);
     ondelete();
   }
 
   // The pane, if the cell has run before, comes back with its output as it was.
   const attachPane: Attachment<HTMLElement> = (slot) => {
     paneSlot = slot;
-    const pane = existingPane(notebookPath, cell.id);
-    pane?.attach(slot, runButton ?? null);
+    existingPane(notebookPath, cell.id)?.attach(slot, runButton ?? null);
     return () => {
-      pane?.detach();
+      // Looked up again: a first run since mounting has created the pane meanwhile.
+      existingPane(notebookPath, cell.id)?.detach();
       paneSlot = null;
     };
   };
