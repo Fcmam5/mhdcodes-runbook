@@ -1,7 +1,9 @@
 <script lang="ts">
   import { messageOf } from "../../../shared/errors";
   import { startupExcerpt } from "../../../shared/startup-excerpt";
-  import type { Notebook, SessionEnd, SessionState } from "../../../shared/types";
+  import { NO_NOTEBOOK_RUNS } from "../../../shared/run-store";
+  import type { Notebook } from "../../../shared/types";
+  import { runs } from "../lib/runs";
   import MarkdownCell from "./MarkdownCell.svelte";
   import SessionDot from "./SessionDot.svelte";
   import SessionNotice from "./SessionNotice.svelte";
@@ -9,20 +11,9 @@
 
   const { notebook }: { notebook: Notebook } = $props();
 
-  // null until the notebook's first run starts a session.
-  let session: SessionState | null = $state(null);
-  // Why the session died on its own, until the next session starts (SPEC §9.3).
-  let end: SessionEnd | null = $state(null);
+  // The session state and its notice live in the run store, so they survive switching.
+  const { session, end } = $derived($runs[notebook.path] ?? NO_NOTEBOOK_RUNS);
   let restartError: string | null = $state(null);
-
-  $effect(() =>
-    window.api.onSessionState((event) => {
-      if (event.notebookPath !== notebook.path) return;
-      session = event.state;
-      if (event.state === "starting") end = null;
-      if (event.end) end = event.end;
-    }),
-  );
 
   async function restart(): Promise<void> {
     restartError = null;
@@ -59,7 +50,7 @@
   {#if end}
     <SessionNotice
       details={end.type === "start-failed" ? startupExcerpt(end.output) : ""}
-      ondismiss={() => (end = null)}
+      ondismiss={() => runs.dismissEnd(notebook.path)}
     >
       {#if end.type === "start-failed"}
         Shell didn't start. Your <code>~/.bashrc</code> may exec another shell or wait for input.

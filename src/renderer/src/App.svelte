@@ -9,11 +9,23 @@
   let selected: string | null = $state(null);
   let notebook: Notebook | null = $state(null);
   let error: string | null = $state(null);
+  // Each notebook as first opened in this window, reused on return. Cells without an
+  // {id=…} in the file get fresh IDs on every read, and the run store and output panes
+  // are keyed by cell ID: a re-read would cut a cell off from its output and from a run
+  // still going in the background.
+  const visited = new Map<string, Notebook>();
 
   async function open(path: string): Promise<void> {
     selected = path;
+    const known = visited.get(path);
+    if (known) {
+      notebook = known;
+      error = null;
+      return;
+    }
     try {
       const opened = await window.api.readNotebook(path);
+      visited.set(path, opened);
       // A slower earlier read must not replace the notebook clicked last.
       if (selected !== path) return;
       notebook = opened;

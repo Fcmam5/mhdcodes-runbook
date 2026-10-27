@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { SessionState } from "../../../shared/types";
 
-  // null: the notebook has no session yet.
-  const { state }: { state: SessionState | null } = $props();
+  // null: the notebook has no session yet. Compact: the dot alone, for the sidebar.
+  const { state, compact = false }: { state: SessionState | null; compact?: boolean } = $props();
 
   // SPEC §9.3: grey = no session, green = ready, amber = busy, red = dead. A session
   // that is still starting can't run anything yet, so it shows as busy.
@@ -17,8 +17,8 @@
   const look = $derived(LOOKS[state ?? "none"]);
 </script>
 
-<span class="flex items-center gap-1.5 text-xs text-zinc-500" title={look.label}>
-  Session
+<span class="flex shrink-0 items-center gap-1.5 text-xs text-zinc-500" title={look.label}>
+  {#if !compact}Session{/if}
   <span class={["inline-block size-2.5 rounded-full", look.colour]} role="img" aria-label={look.label}
   ></span>
 </span>

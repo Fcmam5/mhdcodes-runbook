@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { NotebookSummary } from "../../../shared/types";
+  import { runs } from "../lib/runs";
+  import SessionDot from "./SessionDot.svelte";
 
   interface Props {
     notebooks: NotebookSummary[];
@@ -17,7 +19,7 @@
     <button
       type="button"
       class={[
-        "truncate rounded-md px-3 py-1.5 text-left text-sm",
+        "flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm",
         notebook.path === selected
           ? "bg-zinc-200 font-medium dark:bg-zinc-800"
           : "hover:bg-zinc-100 dark:hover:bg-zinc-900",
@@ -26,7 +28,11 @@
       title={notebook.title}
       onclick={() => onselect(notebook.path)}
     >
-      {notebook.title}
+      <span class="min-w-0 flex-1 truncate">{notebook.title}</span>
+      <!-- Notebooks with a session show its dot, so a cell running in the background is visible. -->
+      {#if $runs[notebook.path]?.session}
+        <SessionDot state={$runs[notebook.path]?.session ?? null} compact />
+      {/if}
     </button>
   {/each}
 </nav>
