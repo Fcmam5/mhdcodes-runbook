@@ -11,24 +11,34 @@ import {
   resolveNotebookPath,
   saveNotebook,
 } from "./notebooks";
+import { NotebookIndex } from "./search";
 import type { SessionManager } from "./shell/manager";
 import { OutputBatcher } from "./shell/output-batcher";
 
 export function registerIpc(settings: Settings, sessions: SessionManager): void {
+  // Built on the first search, then kept current by the handlers below.
+  const index = new NotebookIndex(settings.notebooksDir);
+
   ipcMain.handle("settings:get", () => settings);
   ipcMain.handle("notebooks:list", () => listNotebooks(settings.notebooksDir));
   ipcMain.handle("notebooks:read", (_event, path: unknown) =>
     readNotebook(settings.notebooksDir, path),
   );
-  ipcMain.handle("notebooks:save", (_event, notebook: unknown) =>
-    saveNotebook(settings.notebooksDir, notebook),
-  );
-  ipcMain.handle("notebooks:create", (_event, title: unknown) =>
-    createNotebook(settings.notebooksDir, title),
+  ipcMain.handle("notebooks:save", async (_event, notebook: unknown) => {
+    index.update(await saveNotebook(settings.notebooksDir, notebook));
+  });
+  ipcMain.handle("notebooks:create", async (_event, title: unknown) => {
+    const created = await createNotebook(settings.notebooksDir, title);
+    index.update(created);
+    return created;
+  });
+  ipcMain.handle("notebooks:search", (_event, query: unknown) =>
+    index.search(typeof query === "string" ? query : ""),
   );
   ipcMain.handle("notebooks:rename", async (_event, path: unknown, title: unknown) => {
     const from = resolveNotebookPath(settings.notebooksDir, path);
     const renamed = await renameNotebook(settings.notebooksDir, from, title);
+    index.rename(from, renamed);
     // A running cell keeps running in the renamed notebook (SPEC §6.6).
     sessions.rename(from, renamed.path);
     return renamed;
@@ -36,6 +46,7 @@ export function registerIpc(settings: Settings, sessions: SessionManager): void 
   ipcMain.handle("notebooks:delete", async (_event, path: unknown) => {
     const deleted = await deleteNotebook(settings.notebooksDir, path, (p) => shell.trashItem(p));
     sessions.close(deleted);
+    index.remove(deleted);
   });
   ipcMain.handle("notebooks:reveal", (_event, path: unknown) => {
     shell.showItemInFolder(resolveNotebookPath(settings.notebooksDir, path));

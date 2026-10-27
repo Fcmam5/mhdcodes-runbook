@@ -26,6 +26,7 @@ const api: Api = {
   renameNotebook: (path, newTitle) => ipcRenderer.invoke("notebooks:rename", path, newTitle),
   deleteNotebook: (path) => ipcRenderer.invoke("notebooks:delete", path),
   showNotebookInFolder: (path) => ipcRenderer.invoke("notebooks:reveal", path),
+  searchNotebooks: (query) => ipcRenderer.invoke("notebooks:search", query),
   // A request and reply, not a channel(): main waits for exactly one "flushed" reply,
   // sent once the callback's saves settle. Register a single handler (saveOnClose).
   onFlushRequest: (callback) => {

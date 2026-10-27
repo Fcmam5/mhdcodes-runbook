@@ -70,10 +70,12 @@ const saving = new Map<string, Promise<void>>();
 // Writes the notebook to its file atomically (SPEC §8): to `<file>.tmp`, then renamed
 // over the file, so a crash mid-write never leaves a half-written notebook. The value
 // comes from the renderer, so its path and shape are checked first.
-export async function saveNotebook(dir: string, value: unknown): Promise<void> {
+// Resolves with the notebook as saved, for the search index.
+export async function saveNotebook(dir: string, value: unknown): Promise<Notebook> {
   const notebook = toNotebook(value);
-  const path = resolveNotebookPath(dir, notebook.path);
-  await queueWrite(path, serialize({ ...notebook, path }));
+  const saved = { ...notebook, path: resolveNotebookPath(dir, notebook.path) };
+  await queueWrite(saved.path, serialize(saved));
+  return saved;
 }
 
 // Creates an empty notebook named after its title (SPEC §8), never overwriting a file.

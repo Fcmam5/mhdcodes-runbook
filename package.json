@@ -57,6 +57,7 @@
   "productName": "Runbook",
   "dependencies": {
     "markdown-it": "15.0.3",
+    "minisearch": "7.2.0",
     "nanoid": "6.0.2",
     "node-pty": "1.1.0",
     "yaml": "2.9.1"

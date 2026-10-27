@@ -3,6 +3,7 @@ import type {
   CellRunStatus,
   Notebook,
   NotebookSummary,
+  SearchResult,
   SessionEnd,
   SessionState,
   Settings,
@@ -35,6 +36,7 @@ export interface Api {
   renameNotebook: (path: string, newTitle: string) => Promise<Notebook>;
   deleteNotebook: (path: string) => Promise<void>; // moves it to the OS trash
   showNotebookInFolder: (path: string) => Promise<void>;
+  searchNotebooks: (query: string) => Promise<SearchResult[]>; // { path, title, snippet }
   // Runs the callback when the window is about to close, then lets it close.
   onFlushRequest: (callback: () => Promise<void>) => void;
 

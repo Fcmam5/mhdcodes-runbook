@@ -46,3 +46,10 @@ export interface NotebookSummary {
 export interface Settings {
   notebooksDir: string; // absolute path
 }
+
+// A search hit for the sidebar (SPEC §7, §9.2).
+export interface SearchResult {
+  path: string;
+  title: string;
+  snippet: string; // one line around the first match, or the notebook's first line
+}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { NotebookSummary } from "../../../shared/types";
+  import type { NotebookSummary, SearchResult } from "../../../shared/types";
   import { runs } from "../lib/runs";
   import SessionDot from "./SessionDot.svelte";
 
@@ -16,6 +16,34 @@
 
   const { notebooks, selected, onselect, oncreate, onrename, ondelete, onreveal }: Props =
     $props();
+
+  // Search (SPEC §9.2): an empty query shows every notebook; otherwise the results,
+  // each with a one-line snippet. Queries wait 150 ms after the last keystroke.
+  let query = $state("");
+  let results: SearchResult[] | null = $state(null);
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchSeq = 0;
+
+  function search(text: string): void {
+    query = text;
+    clearTimeout(searchTimer);
+    const seq = ++searchSeq;
+    if (text.trim() === "") {
+      results = null;
+      return;
+    }
+    searchTimer = setTimeout(() => {
+      window.api.searchNotebooks(text).then(
+        (found) => {
+          // An older query answering late must not replace a newer one's results.
+          if (seq === searchSeq) results = found;
+        },
+        () => {
+          if (seq === searchSeq) results = [];
+        },
+      );
+    }, 150);
+  }
 
   // "+ New" shows an inline title input (SPEC §9.2).
   let creating = $state(false);
@@ -101,7 +129,42 @@
   class="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r border-zinc-200 p-3 dark:border-zinc-800"
   onscroll={() => (menu = null)}
 >
-  {#if creating}
+  <input
+    type="search"
+    class="mb-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-blue-500 dark:border-zinc-800 dark:bg-zinc-900"
+    placeholder="Search…"
+    aria-label="Search notebooks"
+    value={query}
+    oninput={(event) => search(event.currentTarget.value)}
+    onkeydown={(event) => {
+      if (event.key === "Escape") search("");
+    }}
+  />
+
+  {#if results}
+    {#each results as result (result.path)}
+      <button
+        type="button"
+        class={[
+          "flex flex-col rounded-md px-3 py-1.5 text-left text-sm",
+          result.path === selected
+            ? "bg-zinc-200 dark:bg-zinc-800"
+            : "hover:bg-zinc-100 dark:hover:bg-zinc-900",
+        ]}
+        title={result.title}
+        onclick={() => onselect(result.path)}
+      >
+        <span class="truncate font-medium">
+          {notebooks.find((notebook) => notebook.path === result.path)?.title ?? result.title}
+        </span>
+        {#if result.snippet}
+          <span class="truncate text-xs text-zinc-500">{result.snippet}</span>
+        {/if}
+      </button>
+    {:else}
+      <p class="px-3 py-1.5 text-sm text-zinc-500">No matches</p>
+    {/each}
+  {:else if creating}
     <input
       class="mb-1 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
       aria-label="New notebook title"
@@ -129,6 +192,7 @@
     </button>
   {/if}
 
+  {#if !results}
   {#each notebooks as notebook (notebook.path)}
     {#if renaming === notebook.path}
       <input
@@ -182,6 +246,7 @@
       </div>
     {/if}
   {/each}
+  {/if}
 </nav>
 
 {#if menu}
