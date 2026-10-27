@@ -2,7 +2,7 @@
 
 import { BrowserWindow, ipcMain } from "electron";
 import type { Settings } from "../shared/types";
-import { listNotebooks, readNotebook, resolveNotebookPath } from "./notebooks";
+import { listNotebooks, readNotebook, resolveNotebookPath, saveNotebook } from "./notebooks";
 import type { SessionManager } from "./shell/manager";
 import { OutputBatcher } from "./shell/output-batcher";
 
@@ -11,6 +11,9 @@ export function registerIpc(settings: Settings, sessions: SessionManager): void 
   ipcMain.handle("notebooks:list", () => listNotebooks(settings.notebooksDir));
   ipcMain.handle("notebooks:read", (_event, path: unknown) =>
     readNotebook(settings.notebooksDir, path),
+  );
+  ipcMain.handle("notebooks:save", (_event, notebook: unknown) =>
+    saveNotebook(settings.notebooksDir, notebook),
   );
 
   // Resolves once the run ends; its status arrives separately as a cell:status event.

@@ -1,12 +1,29 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { Attachment } from "svelte/attachments";
   import { isActive, NO_CELL_RUN } from "../../../shared/run-store";
   import { statusLine } from "../../../shared/status";
   import type { Cell } from "../../../shared/types";
   import { shellEditor } from "../lib/codemirror";
   import { existingPane, paneFor, runCell, runs, stopCell } from "../lib/runs";
+  import CellMenu from "./CellMenu.svelte";
 
-  const { notebookPath, cell }: { notebookPath: string; cell: Cell } = $props();
+  interface Props {
+    notebookPath: string;
+    cell: Cell;
+    autofocus?: boolean; // a new cell's editor takes the focus
+    onchange: (source: string) => void;
+    ondelete: () => void;
+  }
+
+  const { notebookPath, cell, autofocus = false, onchange, ondelete }: Props = $props();
+
+  // Created once: it owns its document and reports edits, which come back as cell.source.
+  const editor = shellEditor({
+    initial: untrack(() => cell.source),
+    onChange: (source) => onchange(source),
+    autofocus: untrack(() => autofocus),
+  });
 
   let runButton: HTMLButtonElement | undefined = $state();
   let paneSlot: HTMLElement | null = null;
@@ -21,7 +38,13 @@
     // Created on the cell's first run, and attached before the run so the shell can
     // be sized to it.
     paneFor(notebookPath, cell.id).attach(paneSlot, runButton ?? null);
+    // The editor's current contents: every edit has already reached cell.source.
     void runCell(notebookPath, cell.id, cell.source);
+  }
+
+  function remove(): void {
+    if (active) stopCell(notebookPath, cell.id);
+    ondelete();
   }
 
   // The pane, if the cell has run before, comes back with its output as it was.
@@ -37,11 +60,13 @@
 </script>
 
 <div class="relative flex flex-col gap-1.5">
-  <div class="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+  <!-- No overflow-hidden: it would clip the ⋮ menu. -->
+  <div class="rounded-lg border border-zinc-200 dark:border-zinc-800">
     <div
-      class="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 py-1 pr-1 pl-3 dark:border-zinc-800 dark:bg-zinc-900"
+      class="flex items-center justify-between rounded-t-lg border-b border-zinc-200 bg-zinc-50 py-1 pr-1 pl-3 dark:border-zinc-800 dark:bg-zinc-900"
     >
       <span class="font-mono text-xs text-zinc-500">{cell.info ?? "bash"}</span>
+      <span class="flex items-center gap-0.5">
       <button
         bind:this={runButton}
         type="button"
@@ -52,8 +77,15 @@
       >
         {#if active}■{:else}▶&#xFE0E;{/if}
       </button>
+      <CellMenu
+        items={[
+          { label: "Clear output", onselect: () => existingPane(notebookPath, cell.id)?.clear() },
+          { label: "Delete cell", onselect: remove, danger: true },
+        ]}
+      />
+      </span>
     </div>
-    <div {@attach shellEditor(cell.source)}></div>
+    <div {@attach editor}></div>
   </div>
 
   {#if line}

@@ -1,4 +1,15 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,6 +18,7 @@ import {
   listNotebooks,
   readNotebook,
   resolveNotebookPath,
+  saveNotebook,
 } from "../src/main/notebooks";
 import { WELCOME_NOTEBOOK } from "../src/main/welcome";
 import { parse, serialize } from "../src/shared/notebook";
@@ -159,5 +171,89 @@ describe("Welcome notebook", () => {
 
   it("is already in saved form, so opening it never rewrites it", () => {
     expect(serialize(notebook)).toBe(WELCOME_NOTEBOOK);
+  });
+});
+
+describe("saveNotebook", () => {
+  const TEXT = "---\ntitle: Notes # keep me\n---\n\nHello\n\n```bash {id=abc12345}\necho hi\n```\n";
+
+  async function opened(name = "notes.md", text = TEXT) {
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, name), text);
+    return readNotebook(dir, join(dir, name));
+  }
+
+  it("writes the edited notebook, keeping the rest of the file as it was", async () => {
+    const notebook = await opened();
+    const [markdown, shell] = notebook.cells;
+    await saveNotebook(dir, {
+      ...notebook,
+      title: "Renamed",
+      cells: [{ ...markdown, source: "Hello again" }, shell],
+    });
+    expect(await readFile(notebook.path, "utf8")).toBe(
+      "---\ntitle: Renamed # keep me\n---\n\nHello again\n\n```bash {id=abc12345}\necho hi\n```\n",
+    );
+  });
+
+  it("leaves no temp file behind", async () => {
+    const notebook = await opened();
+    await saveNotebook(dir, notebook);
+    expect(await readdir(dir)).toEqual(["notes.md"]);
+  });
+
+  it("keeps a symlinked notebook a symlink, and writes the file it points to", async () => {
+    await mkdir(dir, { recursive: true });
+    const real = join(root, "elsewhere.md");
+    await writeFile(real, TEXT);
+    await symlink(real, join(dir, "linked.md"));
+    const notebook = await readNotebook(dir, join(dir, "linked.md"));
+    await saveNotebook(dir, { ...notebook, title: "Through the link" });
+    expect((await lstat(join(dir, "linked.md"))).isSymbolicLink()).toBe(true);
+    expect(await readFile(real, "utf8")).toContain("title: Through the link");
+  });
+
+  it("keeps the file's permissions", async () => {
+    const notebook = await opened();
+    await chmod(notebook.path, 0o600);
+    await saveNotebook(dir, { ...notebook, title: "Private" });
+    expect((await stat(notebook.path)).mode & 0o777).toBe(0o600);
+  });
+
+  it("ends with the last of several overlapping saves", async () => {
+    const notebook = await opened();
+    await Promise.all(
+      ["one", "two", "three"].map((title) => saveNotebook(dir, { ...notebook, title })),
+    );
+    expect(await readFile(notebook.path, "utf8")).toContain("title: three");
+    expect(await readdir(dir)).toEqual(["notes.md"]);
+  });
+
+  it("refuses a path outside the notebooks folder", async () => {
+    const notebook = await opened();
+    await expect(
+      saveNotebook(dir, { ...notebook, path: join(root, "outside.md") }),
+    ).rejects.toThrow();
+    expect(await readdir(root)).toEqual(["Runbooks"]);
+  });
+
+  it.each([
+    ["not an object", null],
+    ["tags that aren't strings", { tags: [1] }],
+    ["an unknown line ending", { lineEnding: "\r" }],
+    [
+      "a cell ID that would break its {id=…}",
+      { cells: [{ id: "a}b", type: "shell", source: "" }] },
+    ],
+    [
+      "an info string spanning lines",
+      { cells: [{ id: "a", type: "shell", source: "", info: "bash\nx" }] },
+    ],
+    ["an unknown cell type", { cells: [{ id: "a", type: "python", source: "" }] }],
+  ])("refuses a notebook with %s", async (_name, change) => {
+    const notebook = await opened();
+    const value = change === null ? null : { ...notebook, ...change };
+    await expect(saveNotebook(dir, value)).rejects.toThrow("Invalid notebook");
+    expect(await readFile(notebook.path, "utf8")).toBe(TEXT);
   });
 });

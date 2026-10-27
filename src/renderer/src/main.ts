@@ -1,11 +1,13 @@
 import { mount } from "svelte";
 import { externalUrl } from "../../shared/links";
 import App from "./App.svelte";
+import { saveOnClose } from "./lib/notebooks";
 import { trackRuns } from "./lib/runs";
 import "./app.css";
 
 // Before anything can run: run events must reach the store whichever notebook is shown.
 trackRuns();
+saveOnClose();
 
 // Links never navigate the app window. http(s) links open in the system browser via
 // the main process's window-open handler; every other link does nothing.

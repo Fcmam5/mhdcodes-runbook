@@ -21,6 +21,15 @@ const api: Api = {
   listNotebooks: () => ipcRenderer.invoke("notebooks:list"),
   readNotebook: (path) => ipcRenderer.invoke("notebooks:read", path),
   getSettings: () => ipcRenderer.invoke("settings:get"),
+  saveNotebook: (notebook) => ipcRenderer.invoke("notebooks:save", notebook),
+  onFlushRequest: (callback) => {
+    ipcRenderer.on("notebooks:flush", () => {
+      // Close even if saving failed: the user would otherwise be stuck in the window.
+      void callback()
+        .catch(() => {})
+        .finally(() => ipcRenderer.send("notebooks:flushed"));
+    });
+  },
   runCell: (notebookPath, cellId, source) =>
     ipcRenderer.invoke("cell:run", notebookPath, cellId, source),
   cancelCell: (notebookPath, cellId) => ipcRenderer.invoke("cell:cancel", notebookPath, cellId),

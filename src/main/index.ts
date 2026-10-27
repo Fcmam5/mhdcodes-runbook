@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { externalUrl } from "../shared/links";
 import { registerIpc } from "./ipc";
 import { ensureNotebooksDir } from "./notebooks";
@@ -21,6 +21,28 @@ function createWindow(): void {
   });
 
   win.once("ready-to-show", () => win.show());
+
+  // Autosave waits 500 ms after an edit (SPEC §8), so ask the renderer to save what is
+  // still pending before the window goes. A renderer that doesn't answer (crashed,
+  // still loading) gets 3 s.
+  let flushed = false;
+  win.on("close", (event) => {
+    if (flushed) return;
+    event.preventDefault();
+    const close = (): void => {
+      if (flushed) return;
+      flushed = true;
+      clearTimeout(timer);
+      ipcMain.removeListener("notebooks:flushed", onFlushed);
+      win.close();
+    };
+    const onFlushed = (reply: Electron.IpcMainEvent): void => {
+      if (reply.sender === win.webContents) close();
+    };
+    const timer = setTimeout(close, 3000);
+    ipcMain.on("notebooks:flushed", onFlushed);
+    win.webContents.send("notebooks:flush");
+  });
 
   // Open http(s) links in the default browser instead of new Electron windows.
   win.webContents.setWindowOpenHandler(({ url }) => {

@@ -312,6 +312,10 @@ interface Api {
   onSessionState(
     cb: (e: { notebookPath: string; state: SessionState; end?: SessionEnd }) => void,
   ): () => void;
+
+  // window close: main holds the close until the callback (which saves pending edits,
+  // §8) settles, or 3 s pass
+  onFlushRequest(cb: () => Promise<void>): void;
 }
 
 type SessionEnd =

@@ -29,6 +29,9 @@ export interface Api {
   listNotebooks: () => Promise<NotebookSummary[]>;
   readNotebook: (path: string) => Promise<Notebook>;
   getSettings: () => Promise<Settings>;
+  saveNotebook: (notebook: Notebook) => Promise<void>; // atomic write
+  // Runs the callback when the window is about to close, then lets it close.
+  onFlushRequest: (callback: () => Promise<void>) => void;
 
   // Starts the notebook's session if needed; resolves when the run ends.
   runCell: (notebookPath: string, cellId: string, source: string) => Promise<void>;
