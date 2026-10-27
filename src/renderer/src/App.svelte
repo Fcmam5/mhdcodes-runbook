@@ -13,6 +13,19 @@
   let selected: string | null = $state(null);
   let shown: string | null = $state(null); // the path of the notebook on screen
   let error: string | null = $state(null);
+  let sidebar: ReturnType<typeof Sidebar> | undefined = $state();
+
+  // Window-wide shortcuts (SPEC §9.5). Not inside an output pane: there Ctrl+N and
+  // Ctrl+K are bash's own keys (previous command, kill to end of line).
+  function onkeydown(event: KeyboardEvent): void {
+    const ctrl = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey;
+    if (!ctrl || (event.target instanceof Element && event.target.closest(".xterm"))) return;
+    const key = event.key.toLowerCase();
+    if (key === "n") sidebar?.startCreate();
+    else if (key === "k") sidebar?.focusSearch();
+    else return;
+    event.preventDefault();
+  }
   // The notebook on screen, with every edit so far: the store is the source of truth
   // for open notebooks.
   const notebook: Notebook | null = $derived(shown === null ? null : ($openNotebooks[shown] ?? null));
@@ -147,8 +160,11 @@
   void load();
 </script>
 
+<svelte:window {onkeydown} />
+
 <div class="flex h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
   <Sidebar
+    bind:this={sidebar}
     notebooks={listed}
     {selected}
     onselect={(path) => void open(path)}

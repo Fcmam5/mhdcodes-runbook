@@ -14,15 +14,26 @@
     autofocus?: boolean; // a new cell's editor takes the focus
     onchange: (source: string) => void;
     ondelete: () => void;
+    onfocusnext: () => void; // Shift+Enter moves on to the next cell
   }
 
-  const { notebookPath, cell, autofocus = false, onchange, ondelete }: Props = $props();
+  const { notebookPath, cell, autofocus = false, onchange, ondelete, onfocusnext }: Props =
+    $props();
 
   // Created once: it owns its document and reports edits, which come back as cell.source.
+  // Its shortcuts run before CodeMirror's own keys (SPEC §9.5).
   const editor = shellEditor({
     initial: untrack(() => cell.source),
     onChange: (source) => onchange(source),
     autofocus: untrack(() => autofocus),
+    shortcuts: {
+      "Shift-Enter": () => runFromKeyboard(true),
+      "Mod-Enter": () => runFromKeyboard(false),
+      "Mod-.": () => stopFromKeyboard(),
+      // Leaves the editor for the cell's toolbar, where the other shortcuts still work.
+      Escape: () => runButton?.focus(),
+      "Mod-Shift-Backspace": () => remove(),
+    },
   });
 
   let runButton: HTMLButtonElement | undefined = $state();
@@ -40,6 +51,34 @@
     paneFor(notebookPath, cell.id).attach(paneSlot, runButton ?? null);
     // The editor's current contents: every edit has already reached cell.source.
     void runCell(notebookPath, cell.id, cell.source);
+  }
+
+  // Shift+Enter and Ctrl+Enter. A cell already running or queued isn't run again, as
+  // its Run button is Stop then.
+  function runFromKeyboard(moveOn: boolean): void {
+    if (!active) start();
+    if (moveOn) onfocusnext();
+  }
+
+  function stopFromKeyboard(): void {
+    if (active) stopCell(notebookPath, cell.id);
+  }
+
+  // The same shortcuts with the focus elsewhere in the cell: the toolbar or the output
+  // pane. In the pane only Esc and Ctrl+. count; every other key goes to the shell.
+  function onkeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) return; // the editor's keymap had it
+    const inPane = paneSlot?.contains(event.target as Node) ?? false;
+    const ctrl = event.ctrlKey && !event.altKey && !event.metaKey;
+    let handled = true;
+    if (event.key === "Escape" && inPane) runButton?.focus();
+    else if (ctrl && event.key === ".") stopFromKeyboard();
+    else if (inPane) handled = false;
+    else if (event.key === "Enter" && event.shiftKey && !event.ctrlKey) runFromKeyboard(true);
+    else if (event.key === "Enter" && ctrl && !event.shiftKey) runFromKeyboard(false);
+    else if (event.key === "Backspace" && ctrl && event.shiftKey) remove();
+    else handled = false;
+    if (handled) event.preventDefault();
   }
 
   function remove(): void {
@@ -61,7 +100,8 @@
   };
 </script>
 
-<div class="relative flex flex-col gap-1.5">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="relative flex flex-col gap-1.5" data-cell {onkeydown}>
   <!-- No overflow-hidden: it would clip the ⋮ menu. -->
   <div class="rounded-lg border border-zinc-200 dark:border-zinc-800">
     <div

@@ -15,6 +15,9 @@
 
   // Rendered by default; click or Enter edits, Esc or clicking outside renders again (SPEC §9.3).
   let editing = $state(untrack(() => autoEdit));
+  // Esc leaves the editor with the keyboard still on this cell (SPEC §9.5); clicking
+  // elsewhere doesn't take it back.
+  let refocus = false;
   const html = $derived(renderMarkdown(source));
 
   function edit(event: MouseEvent | KeyboardEvent): void {
@@ -30,11 +33,32 @@
       onChange: onchange,
       onExit: () => (editing = false),
       autofocus: true,
+      shortcuts: {
+        Escape: () => {
+          refocus = true;
+          editing = false;
+        },
+        "Mod-Shift-Backspace": () => ondelete(),
+      },
     });
+  }
+
+  const focusIfLeftByKeyboard = (element: HTMLElement): void => {
+    if (refocus) element.focus();
+    refocus = false;
+  };
+
+  function onkeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) return; // the editor's keymap had it
+    if (event.key === "Backspace" && event.ctrlKey && event.shiftKey) {
+      event.preventDefault();
+      ondelete();
+    }
   }
 </script>
 
-<div class="group relative">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="group relative" data-cell {onkeydown}>
   <div class="absolute -top-1 right-0 z-10 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
     <CellMenu items={[{ label: "Delete cell", onselect: ondelete, danger: true }]} />
   </div>
@@ -47,6 +71,8 @@
     <!-- Safe: markdown-it runs with html: false, so the output contains no raw HTML. -->
     <div
       class="markdown min-h-6 cursor-text rounded-lg focus-visible:outline-2 focus-visible:outline-blue-500"
+      data-focus-target
+      {@attach focusIfLeftByKeyboard}
       role="button"
       tabindex="0"
       aria-label="Edit markdown cell"

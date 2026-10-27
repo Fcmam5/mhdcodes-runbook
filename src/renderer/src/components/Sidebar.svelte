@@ -45,6 +45,20 @@
     }, 150);
   }
 
+  let searchInput: HTMLInputElement | undefined = $state();
+
+  // Ctrl+K (SPEC §9.5).
+  export function focusSearch(): void {
+    searchInput?.focus();
+    searchInput?.select();
+  }
+
+  // Ctrl+N: the same inline input as "+ New". It takes the focus when it appears.
+  export function startCreate(): void {
+    search("");
+    creating = true;
+  }
+
   // "+ New" shows an inline title input (SPEC §9.2).
   let creating = $state(false);
   let newTitle = $state("");
@@ -134,6 +148,7 @@
     class="mb-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-blue-500 dark:border-zinc-800 dark:bg-zinc-900"
     placeholder="Search…"
     aria-label="Search notebooks"
+    bind:this={searchInput}
     value={query}
     oninput={(event) => search(event.currentTarget.value)}
     onkeydown={(event) => {

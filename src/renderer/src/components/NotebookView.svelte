@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { messageOf } from "../../../shared/errors";
   import {
     deleteCell,
@@ -42,6 +43,25 @@
     });
   }
 
+  let article: HTMLElement | undefined = $state();
+
+  // Puts the keyboard on the cell at `index`: a shell cell's editor, or a markdown cell
+  // as rendered (or its editor while editing). Nothing past the last cell.
+  function focusCell(index: number): void {
+    const cell = article?.querySelectorAll<HTMLElement>("[data-cell]")[index];
+    cell?.querySelector<HTMLElement>("[data-focus-target], .cm-content")?.focus();
+  }
+
+  // From the keyboard, the cell that takes a deleted one's place gets the focus, so
+  // several can be deleted in a row.
+  async function removeCell(cellId: string, index: number): Promise<void> {
+    const focused = article?.querySelectorAll("[data-cell]")[index]?.contains(document.activeElement);
+    edit((current) => deleteCell(current, cellId));
+    if (!focused) return;
+    await tick();
+    focusCell(Math.min(index, notebook.cells.length - 1));
+  }
+
   async function restart(): Promise<void> {
     restartError = null;
     try {
@@ -52,7 +72,7 @@
   }
 </script>
 
-<article class="mx-auto flex max-w-3xl flex-col gap-4 px-8 py-6">
+<article class="mx-auto flex max-w-3xl flex-col gap-4 px-8 py-6" bind:this={article}>
   <header class="border-b border-zinc-200 pb-4 dark:border-zinc-800">
     <div class="flex items-center justify-between gap-4">
       <div class="min-w-0 flex-1">
@@ -122,14 +142,15 @@
         {cell}
         autofocus={cell.id === added}
         onchange={(source) => edit((current) => setCellSource(current, cell.id, source))}
-        ondelete={() => edit((current) => deleteCell(current, cell.id))}
+        ondelete={() => void removeCell(cell.id, index)}
+        onfocusnext={() => focusCell(index + 1)}
       />
     {:else}
       <MarkdownCell
         source={cell.source}
         autoEdit={cell.id === added}
         onchange={(source) => edit((current) => setCellSource(current, cell.id, source))}
-        ondelete={() => edit((current) => deleteCell(current, cell.id))}
+        ondelete={() => void removeCell(cell.id, index)}
       />
     {/if}
     {#if index < notebook.cells.length - 1}

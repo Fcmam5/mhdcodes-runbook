@@ -76,6 +76,11 @@ export class OutputPane {
     this.terminal.onWriteParsed(() => this.fitHeight());
     // Ctrl+C arrives here as "\x03" too: in the pane it goes to the shell, not to copy.
     this.terminal.onData((data) => this.options.onInput(data));
+    // Esc (leave the pane) and Ctrl+. (stop) are the cell's shortcuts (SPEC §9.5), not
+    // keys for the shell: xterm ignores them, and they reach the cell's key handler.
+    this.terminal.attachCustomKeyEventHandler(
+      (event) => !(event.key === "Escape" || (event.ctrlKey && event.key === ".")),
+    );
     this.root.className = ROOT_CLASSES;
     this.root.append(this.host);
   }
