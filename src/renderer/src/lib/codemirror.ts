@@ -3,8 +3,7 @@ import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type { Attachment } from "svelte/attachments";
-
-const MONOSPACE = '"Ubuntu Mono", "DejaVu Sans Mono", monospace';
+import { MONOSPACE } from "./fonts";
 
 const shellExtensions = [
   StreamLanguage.define(shell),

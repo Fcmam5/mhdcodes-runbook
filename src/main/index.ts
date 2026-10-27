@@ -4,6 +4,7 @@ import { externalUrl } from "../shared/links";
 import { registerIpc } from "./ipc";
 import { ensureNotebooksDir } from "./notebooks";
 import { defaultSettings, loadSettings } from "./settings";
+import { SessionManager } from "./shell/manager";
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -60,6 +61,22 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
+  const sessions = new SessionManager({
+    rcfilePath: join(app.getPath("userData"), "rcfile.bash"),
+  });
+
+  // Kill the shells and remove the run scripts' temp folder before quitting (SPEC §6.3.9).
+  let quitting = false;
+  app.on("will-quit", (event) => {
+    if (quitting) return;
+    quitting = true;
+    event.preventDefault();
+    void sessions
+      .dispose()
+      .catch((error: unknown) => console.error("Could not clean up shell sessions:", error))
+      .finally(() => app.quit());
+  });
+
   void app.whenReady().then(async () => {
     // Any failure here must still end in a window: a windowless app never quits and
     // keeps the single-instance lock, so the app could not be started again.
@@ -72,7 +89,7 @@ if (!app.requestSingleInstanceLock()) {
     await ensureNotebooksDir(settings.notebooksDir).catch((error: unknown) => {
       console.error("Could not prepare the notebooks folder:", error);
     });
-    registerIpc(settings);
+    registerIpc(settings, sessions);
 
     createWindow();
   });

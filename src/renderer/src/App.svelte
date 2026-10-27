@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Notebook, NotebookSummary } from "../../shared/types";
+  import { messageOf } from "../../shared/errors";
   import NotebookView from "./components/NotebookView.svelte";
   import Sidebar from "./components/Sidebar.svelte";
 
@@ -38,10 +39,6 @@
     } catch (cause) {
       error = messageOf(cause);
     }
-  }
-
-  function messageOf(cause: unknown): string {
-    return cause instanceof Error ? cause.message : String(cause);
   }
 
   void load();
