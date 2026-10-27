@@ -23,6 +23,10 @@ const api: Api = {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   runCell: (notebookPath, cellId, source) =>
     ipcRenderer.invoke("cell:run", notebookPath, cellId, source),
+  cancelCell: (notebookPath, cellId) => ipcRenderer.invoke("cell:cancel", notebookPath, cellId),
+  sendInput: (notebookPath, data) => ipcRenderer.invoke("session:input", notebookPath, data),
+  resizeSession: (notebookPath, cols, rows) =>
+    ipcRenderer.invoke("session:resize", notebookPath, cols, rows),
   onCellOutput: channel("cell:output"),
   onCellStatus: channel("cell:status"),
   onSessionState: channel("session:state"),

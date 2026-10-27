@@ -25,7 +25,15 @@ export interface SessionManagerEvents {
 
 export class SessionManager extends EventEmitter<SessionManagerEvents> {
   private readonly sessions = new Map<string, ShellSession>();
+  // The last size the renderer reported per notebook, so a new session starts at it.
+  private readonly sizes = new Map<string, { cols: number; rows: number }>();
   private prepared: Promise<string> | null = null;
+  // Runs still waiting on prepare(), which have no session to cancel them in yet.
+  private readonly preparing = new Set<{
+    notebookPath: string;
+    cellId: string;
+    cancelled: boolean;
+  }>();
   private disposed = false;
 
   constructor(private readonly options: SessionManagerOptions) {
@@ -36,14 +44,40 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
   // one ended. Resolves with the run's final status.
   async run(notebookPath: string, cellId: string, source: string): Promise<CellRunStatus> {
     if (this.disposed) throw new Error("Shell sessions are shut down");
-    const tempRoot = await this.prepare();
+    const request = { notebookPath, cellId, cancelled: false };
+    this.preparing.add(request);
+    const tempRoot = await this.prepare().finally(() => this.preparing.delete(request));
     // dispose() may have run while we waited; a session started now would be orphaned.
     if (this.disposed) throw new Error("Shell sessions are shut down");
+    if (request.cancelled) {
+      const status: CellRunStatus = { cellId, state: "idle" };
+      this.emit("status", { notebookPath, status });
+      return status;
+    }
     let session = this.sessions.get(notebookPath);
     if (!session || session.state === "dead") {
       session = this.createSession(notebookPath, tempRoot);
     }
     return session.run(cellId, source);
+  }
+
+  // Stops the cell's run, or drops it if it is still waiting (see ShellSession.cancel).
+  cancel(notebookPath: string, cellId: string): void {
+    for (const request of this.preparing) {
+      if (request.notebookPath === notebookPath && request.cellId === cellId) {
+        request.cancelled = true;
+      }
+    }
+    this.sessions.get(notebookPath)?.cancel(cellId);
+  }
+
+  sendInput(notebookPath: string, data: string): void {
+    this.sessions.get(notebookPath)?.sendInput(data);
+  }
+
+  resize(notebookPath: string, cols: number, rows: number): void {
+    this.sizes.set(notebookPath, { cols, rows });
+    this.sessions.get(notebookPath)?.resize(cols, rows);
   }
 
   // Kills every shell. Later runs start new sessions.
@@ -88,6 +122,7 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
       tempRoot,
       env: this.options.env ?? buildShellEnv(process.env),
       cwd: this.options.cwd ?? homedir(),
+      ...this.sizes.get(notebookPath),
       ...(this.options.shell === undefined ? {} : { shell: this.options.shell }),
     });
     session.on("output", (event) => this.emit("output", { notebookPath, ...event }));

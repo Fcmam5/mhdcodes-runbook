@@ -15,6 +15,8 @@ export interface ShellSessionOptions {
   env: Record<string, string>;
   cwd: string;
   shell?: string;
+  cols?: number; // default 120
+  rows?: number; // default 30
 }
 
 export interface ShellSessionEvents {
@@ -28,7 +30,10 @@ interface Run {
   cellId: string;
   source: string;
   scriptPath: string;
-  startedAt?: number;
+  startedAt?: number; // set when the run line is written to the shell
+  started?: boolean; // the shell has printed rb-start
+  stopRequested?: boolean;
+  interruptTimer?: ReturnType<typeof setTimeout>;
   resolve: (status: CellRunStatus) => void;
   reject: (error: Error) => void;
 }
@@ -57,14 +62,14 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
 
   // Spawns bash. Separate from the constructor so listeners can be attached first.
   start(): void {
-    const { rcfilePath, env, cwd, shell = "bash" } = this.options;
+    const { rcfilePath, env, cwd, shell = "bash", cols = 120, rows = 30 } = this.options;
     this.emit("state", "starting");
     try {
       // --noediting turns off readline, so the output holds only command output and markers.
       this.pty = spawn(shell, ["--noediting", "--rcfile", rcfilePath, "-i"], {
         name: "xterm-256color",
-        cols: 120,
-        rows: 30,
+        cols,
+        rows,
         cwd,
         env,
       });
@@ -79,7 +84,8 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
   }
 
   // Runs a cell's source in the session and resolves with its final status. Runs
-  // requested before the shell is ready, or while another run is going, wait in order.
+  // requested before the shell is ready, or while another run is going, wait in order;
+  // one waiting behind another run is reported as queued.
   run(cellId: string, source: string): Promise<CellRunStatus> {
     if (this.currentState === "dead" || this.disposed) {
       return Promise.reject(new Error("Shell session ended"));
@@ -87,9 +93,40 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     return new Promise((resolve, reject) => {
       const runId = nanoid(8);
       const scriptPath = join(this.tempDir, `${runId}.sh`);
+      const behindAnother = this.current !== null || this.waiting.length > 0;
       this.waiting.push({ runId, cellId, source, scriptPath, resolve, reject });
+      if (behindAnother) this.emit("status", { cellId, state: "queued" });
       this.next();
     });
+  }
+
+  // Stops the cell's running run with Ctrl+C, and drops its waiting runs. A dropped
+  // run, or one stopped before the shell got it, resolves as idle: it never ran.
+  cancel(cellId: string): void {
+    for (const run of this.waiting.filter((waiting) => waiting.cellId === cellId)) {
+      this.waiting.splice(this.waiting.indexOf(run), 1);
+      this.settle(run, "idle");
+    }
+    const run = this.current;
+    if (run?.cellId !== cellId) return;
+    run.stopRequested = true;
+    // Before rb-start, bash may not have read the run line yet, and Ctrl+C would
+    // discard it unrun, so no done marker would ever come. onMarker sends it then.
+    if (run.started) this.interrupt(run);
+  }
+
+  // Keystrokes for the running cell. Ignored between runs, and before the shell has
+  // started the run, where they would end up in the run line itself.
+  sendInput(data: string): void {
+    if (this.current?.started && !this.disposed) this.pty?.write(data);
+  }
+
+  resize(cols: number, rows: number): void {
+    try {
+      this.pty?.resize(cols, rows);
+    } catch {
+      // The pty closed in the meantime; onExit handles that.
+    }
   }
 
   dispose(): void {
@@ -125,6 +162,11 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
       void unlink(run.scriptPath).catch(() => {});
       return;
     }
+    if (run.stopRequested) {
+      // Stopped while its script was being written: never send it.
+      this.end(run, "idle");
+      return;
+    }
 
     run.startedAt = Date.now();
     this.emit("status", { cellId: run.cellId, state: "running", startedAt: run.startedAt });
@@ -155,18 +197,37 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
         this.next();
         return;
       case "start":
-        if (run?.runId === marker.runId) this.outputCellId = run.cellId;
+        if (run?.runId !== marker.runId) return;
+        run.started = true;
+        this.outputCellId = run.cellId;
+        if (run.stopRequested) this.interrupt(run);
         return;
       case "done":
-        if (run?.runId === marker.runId) this.finish(run, marker.exitCode);
+        if (run?.runId === marker.runId) {
+          this.end(run, endState(run, marker.exitCode), marker.exitCode);
+        }
         return;
     }
   }
 
-  private finish(run: Run, exitCode: number): void {
+  // Sends Ctrl+C. One sent just as a run starts can be lost: before the command owns
+  // the terminal, it reaches bash, which ignores it while waiting for the command.
+  // So a stop within a second of the start is sent once more after 500 ms, if the
+  // run is still going. Later stops are sent once: to many programs (terraform,
+  // docker compose) a second Ctrl+C means "skip the clean shutdown".
+  private interrupt(run: Run): void {
+    this.pty?.write("\x03");
+    if (run.interruptTimer || Date.now() - (run.startedAt ?? 0) > 1000) return;
+    run.interruptTimer = setTimeout(() => {
+      if (this.current === run) this.pty?.write("\x03");
+    }, 500);
+  }
+
+  // Ends the current run while the shell lives on, and starts the next one.
+  private end(run: Run, state: RunState, exitCode?: number): void {
     this.current = null;
     void unlink(run.scriptPath).catch(() => {});
-    this.settle(run, exitCode === 0 ? "success" : "failed", exitCode);
+    this.settle(run, state, exitCode);
     this.setState("ready");
     this.next();
   }
@@ -177,7 +238,9 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     const run = this.current;
     this.current = null;
     this.setState("dead");
-    if (run) this.settle(run, "failed", exitCode);
+    // Unlike a run's own exit code, the shell's exit status means failure even if 0
+    // (SPEC §6.3.7), unless the user had asked for a stop.
+    if (run) this.settle(run, run.stopRequested ? "interrupted" : "failed", exitCode);
     for (const waiting of this.waiting.splice(0)) {
       waiting.reject(new Error("Shell session ended"));
     }
@@ -185,11 +248,12 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
   }
 
   // Reports a run's final status and resolves its promise.
-  private settle(run: Run, state: RunState, exitCode: number): void {
+  private settle(run: Run, state: RunState, exitCode?: number): void {
+    clearTimeout(run.interruptTimer);
     const status: CellRunStatus = {
       cellId: run.cellId,
       state,
-      exitCode,
+      ...(exitCode === undefined ? {} : { exitCode }),
       ...(run.startedAt === undefined ? {} : { startedAt: run.startedAt }),
       endedAt: Date.now(),
     };
@@ -202,6 +266,13 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     this.currentState = state;
     this.emit("state", state);
   }
+}
+
+// Exit 130 is a Ctrl+C, whether from Stop or typed into the pane (SPEC §6.3.5). After
+// a stop, any exit counts: the cell may catch Ctrl+C and exit with a code of its own.
+function endState(run: Run, exitCode: number): RunState {
+  if (run.stopRequested || exitCode === 130) return "interrupted";
+  return exitCode === 0 ? "success" : "failed";
 }
 
 function shellQuote(value: string): string {

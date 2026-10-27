@@ -27,6 +27,11 @@ __rb_run() {
 # so the done marker is always emitted.
 __rb_after() {
   local __rb_rc=$?
+  # Ignore Ctrl+C until the marker is out: one typed as the run ends would abort
+  # this function, and no marker would come. A cell's own INT trap is restored.
+  local __rb_int
+  __rb_int=$(trap -p INT)
+  trap '' INT
   stty -echo
   set +e
   # Discard input typed during the run (full or partial lines) so it never
@@ -40,6 +45,7 @@ __rb_after() {
     __rb_ready=1
     printf '\033]777;rb-ready\007'
   fi
+  if [ -n "$__rb_int" ]; then eval "$__rb_int"; else trap - INT; fi
 }
 PROMPT_COMMAND='__rb_after'
 

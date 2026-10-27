@@ -203,6 +203,11 @@ __rb_run() {
 # so the done marker is always emitted.
 __rb_after() {
   local __rb_rc=$?
+  # Ignore Ctrl+C until the marker is out: one typed as the run ends would abort
+  # this function, and no marker would come. A cell's own INT trap is restored.
+  local __rb_int
+  __rb_int=$(trap -p INT)
+  trap '' INT
   stty -echo
   set +e
   # Discard input typed during the run (full or partial lines) so it never
@@ -216,6 +221,7 @@ __rb_after() {
     __rb_ready=1
     printf '\033]777;rb-ready\007'
   fi
+  if [ -n "$__rb_int" ]; then eval "$__rb_int"; else trap - INT; fi
 }
 PROMPT_COMMAND='__rb_after'
 
@@ -228,6 +234,7 @@ Why this shape (verified against real bash under a pty):
 - Without the drain, input typed while a cell runs that the cell doesn't read is executed by bash as a new command once the run ends, and a partial line is glued onto the next `__rb_run` line. The drain costs about 50 ms per run.
 - Both `rb-ready` and `rb-done` are printed **after** the drain. The host writes the next `__rb_run` line as soon as it sees a marker; a marker printed before the drain would let the drain swallow that line.
 - `set +e` limits a cell's `set -e` to that cell (§6.5).
+- `__rb_after` ignores Ctrl+C until its marker is out. A Ctrl+C typed as a run ends would otherwise abort it before the marker, leaving the session busy forever. A cell's own INT trap is saved and restored.
 
 ### 6.3 Run protocol
 
@@ -242,7 +249,7 @@ Why this shape (verified against real bash under a pty):
    - Data between `rb-start;<runId>` and `rb-done;<runId>;<code>` is that cell's output.
    - On `rb-done`, set state `success` (code 0) or `failed`, record `exitCode`, delete the temp file.
 4. **One cell at a time per session.** If a run is requested while busy, queue it (state `queued`) and run it in FIFO order. Cancelling a queued cell removes it from the queue.
-5. **Stop:** write `\x03` to the pty. When the subsequent `rb-done` arrives with code 130 (or any code after a stop was requested), set state `interrupted`. Because echo is on during a run, the output shows `^C` before the marker, as in a terminal.
+5. **Stop:** write `\x03` to the pty, once `rb-start` has arrived (before it, bash may not have read the run line, and Ctrl+C would discard it). When the subsequent `rb-done` arrives with code 130 (or any code after a stop was requested), set state `interrupted`; code 130 also means `interrupted` when Ctrl+C was typed into the pane. A Ctrl+C sent just as a command starts can reach bash instead of the command and be lost, so a stop within 1 s of the run's start is sent once more after 500 ms if the run is still going. Later stops send a single Ctrl+C: to many programs a second one means "skip the clean shutdown". Because echo is on during a run, the output shows `^C` before the marker, as in a terminal.
 6. **User input:** while a cell is running, keystrokes from its xterm instance (`onData`) are written to the pty. Input from non-running cells' terminals is ignored. Input the cell never reads is discarded when the run ends (§6.2).
 7. **Session death:** if the pty exits (e.g. a cell ran `exit`, or a command failed under `set -e`), mark the running cell `failed` with the shell's exit status as `exitCode`, mark the session `dead`, and reject queued runs. The next run request transparently spawns a fresh session. Show a notice in the notebook: "Shell session ended (exit N). A `set -e` or `exit` in a cell ends the session. Next run will start a new session."
 8. **Restart session:** kill the pty and spawn a new one; clear the queue; mark any running cell `interrupted`.
@@ -260,6 +267,7 @@ Why this shape (verified against real bash under a pty):
 - A cell that starts a background job (`cmd &`) may keep printing after `rb-done`; that output is routed to the last-run cell.
 - `set -e` is reset after each cell, but a failing command in the **same** cell that enabled it still ends the session (bash exits from a sourced file under `set -e`). `exit` ends the session too. `set -u` and `set -o pipefail` persist across cells, as in a terminal.
 - A cell that overrides `PROMPT_COMMAND` or `stty` settings can break the run protocol; restarting the session recovers.
+- Input typed in the instant a run ends (after the drain in `__rb_after`, before the host has read `rb-done`) reaches the prompt and runs as a command. The window is well under a millisecond plus the keystroke's IPC trip.
 
 ### 6.6 Session lifetime
 
@@ -357,7 +365,7 @@ All main-process handlers must validate that any `path` argument resolves to a f
 - **Links in rendered markdown:** `http:` and `https:` links open in the system browser. All other schemes (`file:`, `javascript:`, relative paths) do nothing.
 - **Shell cell:** always shows a CodeMirror editor (bash highlighting, monospace). Toolbar: Run ▶ (becomes Stop ■ while running or queued), and a menu ⋮ with "Clear output", "Delete cell", "Move up", "Move down".
 - **Status line** under a shell cell after its first run: spinner + "running…", "queued", "✓ exit 0 · 1.2s", "✗ exit 2 · 0.3s", or "■ interrupted".
-- **Output pane:** an xterm.js instance created on first run of that cell. Auto-height up to 400 px, then it scrolls (scrollback 5000 lines). Each new run clears the previous output. Clicking into the pane while the cell runs focuses it for typing input. Hide the pane if output is empty.
+- **Output pane:** an xterm.js instance created on first run of that cell. Auto-height up to 400 px, then it scrolls (scrollback 5000 lines). Each new run clears the previous output. Clicking into the pane while the cell runs focuses it for typing input. When a running cell prints output and the keyboard focus is free (on nothing, or still on that cell's Run/Stop button), the pane takes focus by itself, so a prompt like `sudo`'s password can be answered without a click; focus the user has put elsewhere is never taken. Hide the pane if output is empty.
 - **Session notices** (shell didn't start, session ended) appear at the top of the notebook view (§6.3).
 - Empty notebook state: "This runbook is empty" with "+ Markdown" and "+ Shell" buttons.
 

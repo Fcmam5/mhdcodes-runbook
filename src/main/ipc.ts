@@ -21,6 +21,21 @@ export function registerIpc(settings: Settings, sessions: SessionManager): void 
     }
     await sessions.run(notebookPath, cellId, source);
   });
+  ipcMain.handle("cell:cancel", (_event, path: unknown, cellId: unknown) => {
+    const notebookPath = resolveNotebookPath(settings.notebooksDir, path);
+    if (typeof cellId !== "string") throw new Error("Invalid cell");
+    sessions.cancel(notebookPath, cellId);
+  });
+  ipcMain.handle("session:input", (_event, path: unknown, data: unknown) => {
+    const notebookPath = resolveNotebookPath(settings.notebooksDir, path);
+    if (typeof data !== "string") throw new Error("Invalid input");
+    sessions.sendInput(notebookPath, data);
+  });
+  ipcMain.handle("session:resize", (_event, path: unknown, cols: unknown, rows: unknown) => {
+    const notebookPath = resolveNotebookPath(settings.notebooksDir, path);
+    if (!isTerminalSize(cols) || !isTerminalSize(rows)) throw new Error("Invalid size");
+    sessions.resize(notebookPath, cols, rows);
+  });
 
   const output = new OutputBatcher((event) => broadcast("cell:output", event));
   sessions.on("output", (event) => output.push(event));
@@ -29,6 +44,10 @@ export function registerIpc(settings: Settings, sessions: SessionManager): void 
     broadcast("cell:status", event);
   });
   sessions.on("state", (event) => broadcast("session:state", event));
+}
+
+function isTerminalSize(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 1000;
 }
 
 function broadcast(channel: string, payload: unknown): void {

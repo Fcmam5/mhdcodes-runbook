@@ -30,6 +30,11 @@ export interface Api {
 
   // Starts the notebook's session if needed; resolves when the run ends.
   runCell: (notebookPath: string, cellId: string, source: string) => Promise<void>;
+  // Stops the cell's run, or drops it from the queue.
+  cancelCell: (notebookPath: string, cellId: string) => Promise<void>;
+  // Keystrokes for the running cell; ignored when nothing is running.
+  sendInput: (notebookPath: string, data: string) => Promise<void>;
+  resizeSession: (notebookPath: string, cols: number, rows: number) => Promise<void>;
 
   // Each returns an unsubscribe function.
   onCellOutput: (callback: (event: CellOutputEvent) => void) => () => void;

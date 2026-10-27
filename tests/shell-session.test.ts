@@ -50,6 +50,28 @@ const it = base.extend<{ root: string; manager: SessionManager; events: Events }
   },
 });
 
+function waitForRunning(manager: SessionManager, cellId: string): Promise<void> {
+  return new Promise((resolve) => {
+    const onStatus = ({ status }: { status: CellRunStatus }): void => {
+      if (status.cellId !== cellId || status.state !== "running") return;
+      manager.off("status", onStatus);
+      resolve();
+    };
+    manager.on("status", onStatus);
+  });
+}
+
+// Input only reaches a run once bash has started it, so wait for its first output.
+async function sendWhenStarted(
+  manager: SessionManager,
+  outputOf: (cellId: string) => string,
+  cellId: string,
+  data: string,
+): Promise<void> {
+  await vi.waitFor(() => expect(outputOf(cellId)).not.toBe(""));
+  manager.sendInput(NOTEBOOK, data);
+}
+
 function exists(path: string): Promise<boolean> {
   return access(path).then(
     () => true,
@@ -129,13 +151,15 @@ describe.concurrent("SessionManager with real bash", () => {
     expect(states).toEqual(["starting", "ready", "busy", "ready"]);
   });
 
-  it("runs requests made while starting or busy one at a time, in order", async ({
+  it("queues runs submitted at once and runs them one at a time, in order", async ({
     manager,
-    events: { statuses },
+    events: { statuses, outputOf },
   }) => {
     const runs = [1, 2, 3].map((n) => manager.run(NOTEBOOK, `c${n}`, `sleep 0.1; echo ${n}`));
     await Promise.all(runs);
     expect(statuses.map((s) => `${s.cellId}:${s.state}`)).toEqual([
+      "c2:queued",
+      "c3:queued",
       "c1:running",
       "c1:success",
       "c2:running",
@@ -143,6 +167,174 @@ describe.concurrent("SessionManager with real bash", () => {
       "c3:running",
       "c3:success",
     ]);
+    expect(["c1", "c2", "c3"].map(outputOf)).toEqual(["1\n", "2\n", "3\n"]);
+  });
+
+  it("stops a sleep with Ctrl+C within a second", async ({ manager }) => {
+    const run = manager.run(NOTEBOOK, "c1", "sleep 10");
+    await waitForRunning(manager, "c1");
+    const stoppedAt = Date.now();
+    manager.cancel(NOTEBOOK, "c1");
+    expect(await run).toMatchObject({ state: "interrupted", exitCode: 130 });
+    expect(Date.now() - stoppedAt).toBeLessThan(1000);
+  });
+
+  it("stops a busy loop within a second, and the next run works", async ({
+    manager,
+    events: { outputOf },
+  }) => {
+    const run = manager.run(NOTEBOOK, "c1", "while true; do :; done");
+    await waitForRunning(manager, "c1");
+    const stoppedAt = Date.now();
+    manager.cancel(NOTEBOOK, "c1");
+    expect(await run).toMatchObject({ state: "interrupted" });
+    expect(Date.now() - stoppedAt).toBeLessThan(1000);
+    expect(await manager.run(NOTEBOOK, "c2", "echo next")).toMatchObject({ state: "success" });
+    expect(outputOf("c2")).toBe("next\n");
+  });
+
+  it("survives Ctrl+C typed again while the run is ending", async ({
+    manager,
+    events: { outputOf },
+  }) => {
+    const run = manager.run(NOTEBOOK, "c1", "echo go; sleep 10");
+    await sendWhenStarted(manager, outputOf, "c1", "\x03");
+    // Keep pressing Ctrl+C, so some land while the rcfile is ending the run.
+    const presses = setInterval(() => manager.sendInput(NOTEBOOK, "\x03"), 5);
+    try {
+      expect(await run).toMatchObject({ state: "interrupted", exitCode: 130 });
+    } finally {
+      clearInterval(presses);
+    }
+    expect(await manager.run(NOTEBOOK, "c2", "echo next")).toMatchObject({ state: "success" });
+    expect(outputOf("c2")).toBe("next\n");
+  });
+
+  it("sends a single Ctrl+C for a stop well after the start", async ({
+    manager,
+    events: { outputOf },
+  }) => {
+    // The trap keeps the script going after a Ctrl+C ends one sleep, so a second
+    // Ctrl+C would have the next sleep to end. Every Ctrl+C is echoed as ^C.
+    const source = ["trap : INT", "sleep 1.2", "echo armed", "sleep 1", "sleep 1", "echo end"];
+    const run = manager.run(NOTEBOOK, "c1", source.join("\n"));
+    await vi.waitFor(() => expect(outputOf("c1")).toContain("armed"), { timeout: 3000 });
+    manager.cancel(NOTEBOOK, "c1");
+    expect(await run).toMatchObject({ state: "interrupted" });
+    expect(outputOf("c1")).toBe("armed\n^C\nend\n");
+  });
+
+  it("keeps a cell's own Ctrl+C trap for later cells", async ({
+    manager,
+    events: { outputOf },
+  }) => {
+    await manager.run(NOTEBOOK, "c1", "trap 'echo caught' INT");
+    await manager.run(NOTEBOOK, "c2", "trap -p INT");
+    expect(outputOf("c2")).toBe("trap -- 'echo caught' SIGINT\n");
+  });
+
+  it("counts any exit after a stop as interrupted", async ({ manager, events: { outputOf } }) => {
+    // The cell catches Ctrl+C and ends with a code of its own.
+    const source = [
+      "trap 'stop=1' INT",
+      "stop=",
+      "echo armed",
+      'while [ -z "$stop" ]; do :; done',
+      "(exit 3)",
+    ];
+    const run = manager.run(NOTEBOOK, "c1", source.join("\n"));
+    await vi.waitFor(() => expect(outputOf("c1")).toContain("armed"));
+    manager.cancel(NOTEBOOK, "c1");
+    expect(await run).toMatchObject({ state: "interrupted", exitCode: 3 });
+  });
+
+  it("stops a run that is stopped as soon as it is sent", async ({ manager }) => {
+    // Cancelled before bash has printed rb-start; the Ctrl+C must wait for it.
+    manager.on("status", ({ status }) => {
+      if (status.state === "running") manager.cancel(NOTEBOOK, status.cellId);
+    });
+    const status = await manager.run(NOTEBOOK, "c1", "sleep 10");
+    expect(status.state).toBe("interrupted");
+    manager.removeAllListeners("status");
+    expect(await manager.run(NOTEBOOK, "c2", "true")).toMatchObject({ state: "success" });
+  });
+
+  it("drops a queued run on cancel, so it never runs", async ({
+    manager,
+    events: { outputOf },
+  }) => {
+    const first = manager.run(NOTEBOOK, "c1", "sleep 0.2");
+    const second = manager.run(NOTEBOOK, "c2", "echo never");
+    manager.cancel(NOTEBOOK, "c2");
+    expect(await second).toMatchObject({ cellId: "c2", state: "idle" });
+    expect(await first).toMatchObject({ state: "success" });
+    expect(outputOf("c2")).toBe("");
+  });
+
+  it("passes input to the running cell", async ({ manager, events: { outputOf } }) => {
+    const run = manager.run(NOTEBOOK, "c1", 'echo ready; read -r line; echo "got $line"');
+    await sendWhenStarted(manager, outputOf, "c1", "hello\r");
+    expect(await run).toMatchObject({ state: "success" });
+    expect(outputOf("c1")).toContain("got hello");
+  });
+
+  it("passes a password to a program reading it from /dev/tty, like sudo", async ({
+    manager,
+    events: { outputOf },
+  }) => {
+    // getpass opens /dev/tty and turns echo off, as sudo's password prompt does.
+    const source = `python3 -c 'import getpass; print(len(getpass.getpass("Password: ")))'`;
+    const run = manager.run(NOTEBOOK, "c1", source);
+    await vi.waitFor(() => expect(outputOf("c1")).toContain("Password: "));
+    manager.sendInput(NOTEBOOK, "hunter2\r");
+    expect(await run).toMatchObject({ state: "success" });
+    expect(outputOf("c1")).not.toContain("hunter2");
+    expect(outputOf("c1")).toMatch(/Password: \n7\n$/);
+  });
+
+  it("never executes input the cell didn't read", async ({
+    root,
+    manager,
+    events: { outputOf },
+  }) => {
+    const pwned = join(root, "pwned");
+    const run = manager.run(NOTEBOOK, "c1", "echo started; sleep 0.3");
+    await sendWhenStarted(manager, outputOf, "c1", `touch '${pwned}'\r`);
+    manager.sendInput(NOTEBOOK, `touch '${pwned}-partial'`); // no Enter
+    expect(await run).toMatchObject({ state: "success" });
+    expect(await manager.run(NOTEBOOK, "c2", "echo next")).toMatchObject({ state: "success" });
+    expect(outputOf("c2")).toBe("next\n");
+    expect(await exists(pwned)).toBe(false);
+    expect(await exists(`${pwned}-partial`)).toBe(false);
+  });
+
+  it("ignores input between runs", async ({ root, manager }) => {
+    await manager.run(NOTEBOOK, "c1", "true");
+    manager.sendInput(NOTEBOOK, `touch '${join(root, "pwned")}'\r`);
+    expect(await manager.run(NOTEBOOK, "c2", "true")).toMatchObject({ state: "success" });
+    expect(await exists(join(root, "pwned"))).toBe(false);
+  });
+
+  it("keeps set -e to the cell that set it", async ({ manager, events: { states } }) => {
+    expect(await manager.run(NOTEBOOK, "c1", "set -e")).toMatchObject({ state: "success" });
+    expect(await manager.run(NOTEBOOK, "c2", "false")).toMatchObject({
+      state: "failed",
+      exitCode: 1,
+    });
+    expect(states).not.toContain("dead");
+    expect(await manager.run(NOTEBOOK, "c3", "true")).toMatchObject({ state: "success" });
+  });
+
+  it("applies the reported size to the shell, and to sessions started later", async ({
+    manager,
+    events: { outputOf },
+  }) => {
+    manager.resize(NOTEBOOK, 80, 24);
+    await manager.run(NOTEBOOK, "c1", "stty size");
+    expect(outputOf("c1")).toBe("24 80\n");
+    manager.resize(NOTEBOOK, 100, 10);
+    await manager.run(NOTEBOOK, "c2", "stty size");
+    expect(outputOf("c2")).toBe("10 100\n");
   });
 
   it("keeps one session per notebook", async ({ root, manager, events: { outputOf } }) => {

@@ -85,3 +85,12 @@
     }
   }
 }
+
+/* An output pane with nothing to show. Out of the layout but still rendered, so xterm
+   can measure its font; the cell is its containing block, so it keeps the cell's width. */
+.output-collapsed {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  visibility: hidden;
+}
