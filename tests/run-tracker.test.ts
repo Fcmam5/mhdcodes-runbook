@@ -201,3 +201,69 @@ describe("run tracker: deleting a cell", () => {
     expect(seen).toEqual([{}]);
   });
 });
+
+describe("run tracker: renaming and deleting a notebook", () => {
+  const OTHER = "/n/b.md";
+
+  it("moves panes and run state to the new path", () => {
+    const { tracker, status } = setup();
+    status("c1", "running");
+    const pane = tracker.existingPane(NB, "c1");
+    tracker.renameNotebook(NB, OTHER);
+    expect(tracker.existingPane(OTHER, "c1")).toBe(pane);
+    expect(tracker.existingPane(NB, "c1")).toBeUndefined();
+    expect(get(tracker.runs)[OTHER]?.cells["c1"]?.status?.state).toBe("running");
+    expect(get(tracker.runs)[NB]).toBeUndefined();
+  });
+
+  it("routes events still naming the old path to the renamed notebook", () => {
+    const { tracker, status, output } = setup();
+    status("c1", "running");
+    tracker.renameNotebook(NB, OTHER);
+    // Output main had batched under the old path before the rename.
+    output("c1", "late");
+    status("c1", "success");
+    expect(tracker.existingPane(OTHER, "c1")?.calls).toContain("write late");
+    expect(get(tracker.runs)[OTHER]?.cells["c1"]?.status?.state).toBe("success");
+    expect(get(tracker.runs)[NB]).toBeUndefined();
+  });
+
+  it("sends typing, and a run's end, to the new path", async () => {
+    let finish: (() => void) | undefined;
+    const { tracker, calls, status } = setup({
+      runCell: () => new Promise<void>((resolve) => (finish = resolve)),
+    });
+    const done = tracker.runCell(NB, "c1", "read x");
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    status("c1", "running");
+    tracker.renameNotebook(NB, OTHER);
+    (tracker.existingPane(OTHER, "c1") as FakePane).callbacks.onInput("y\r");
+    finish?.();
+    await done;
+    expect(calls).toContain("input y\r");
+    expect(get(tracker.runs)[OTHER]?.cells["c1"]?.requested).toBe(false);
+    expect(get(tracker.runs)[NB]).toBeUndefined();
+  });
+
+  it("stops routing the old path once a new notebook lives there", () => {
+    const { tracker, status } = setup();
+    status("c1", "running");
+    tracker.renameNotebook(NB, OTHER);
+    tracker.claimPath(NB);
+    status("c9", "running");
+    expect(tracker.existingPane(NB, "c9")).toBeDefined();
+    expect(tracker.existingPane(OTHER, "c9")).toBeUndefined();
+  });
+
+  it("frees a deleted notebook's panes and ignores its last events", () => {
+    const { tracker, created, status, output } = setup();
+    status("c1", "running");
+    status("c2", "running");
+    tracker.forgetNotebook(NB);
+    status("c1", "interrupted");
+    output("c2", "late");
+    expect(created.map((pane) => pane.calls.at(-1))).toEqual(["dispose", "dispose"]);
+    expect(get(tracker.runs)[NB]).toBeUndefined();
+    expect(tracker.existingPane(NB, "c1")).toBeUndefined();
+  });
+});

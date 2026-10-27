@@ -1,8 +1,16 @@
 // IPC handlers behind `window.api` (SPEC §7). Validation lives in the modules they call.
 
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain, shell } from "electron";
 import type { Settings } from "../shared/types";
-import { listNotebooks, readNotebook, resolveNotebookPath, saveNotebook } from "./notebooks";
+import {
+  createNotebook,
+  deleteNotebook,
+  listNotebooks,
+  readNotebook,
+  renameNotebook,
+  resolveNotebookPath,
+  saveNotebook,
+} from "./notebooks";
 import type { SessionManager } from "./shell/manager";
 import { OutputBatcher } from "./shell/output-batcher";
 
@@ -15,6 +23,23 @@ export function registerIpc(settings: Settings, sessions: SessionManager): void 
   ipcMain.handle("notebooks:save", (_event, notebook: unknown) =>
     saveNotebook(settings.notebooksDir, notebook),
   );
+  ipcMain.handle("notebooks:create", (_event, title: unknown) =>
+    createNotebook(settings.notebooksDir, title),
+  );
+  ipcMain.handle("notebooks:rename", async (_event, path: unknown, title: unknown) => {
+    const from = resolveNotebookPath(settings.notebooksDir, path);
+    const renamed = await renameNotebook(settings.notebooksDir, from, title);
+    // A running cell keeps running in the renamed notebook (SPEC §6.6).
+    sessions.rename(from, renamed.path);
+    return renamed;
+  });
+  ipcMain.handle("notebooks:delete", async (_event, path: unknown) => {
+    const deleted = await deleteNotebook(settings.notebooksDir, path, (p) => shell.trashItem(p));
+    sessions.close(deleted);
+  });
+  ipcMain.handle("notebooks:reveal", (_event, path: unknown) => {
+    shell.showItemInFolder(resolveNotebookPath(settings.notebooksDir, path));
+  });
 
   // Resolves once the run ends; its status arrives separately as a cell:status event.
   ipcMain.handle("cell:run", async (_event, path: unknown, cellId: unknown, source: unknown) => {

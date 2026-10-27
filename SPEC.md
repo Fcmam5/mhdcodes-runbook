@@ -192,6 +192,8 @@ __rb_cur=''
 
 __rb_run() {
   # $1 = run id, $2 = script path
+  # Ctrl+C works again for the run, which ends any INT trap a cell set before.
+  trap - INT
   __rb_cur=$1
   stty echo
   printf '\033]777;rb-start;%s\007' "$1"
@@ -202,28 +204,32 @@ __rb_run() {
 # so the done marker is always emitted.
 __rb_after() {
   local __rb_rc=$?
-  # Ignore Ctrl+C until the marker is out: one typed as the run ends would abort
-  # this function, and no marker would come. First thing, so the gap is tiny.
+  # Ignore Ctrl+C from here until the next run starts. One typed as the run ends
+  # would abort this function before its marker; one at the idle prompt would make
+  # bash drop the start of the next run line. First thing, so the gap is tiny.
   trap '' INT
-  stty -echo
+  # noflsh: Ctrl+C must not flush the terminal's queues. The output queue can hold a
+  # marker bash has already written, and losing it leaves the session busy forever.
+  stty -echo noflsh
   set +e
-  # Discard input typed during the run (full or partial lines) so it never
-  # executes as a command.
-  while read -r -s -t 0.05 -n 4096 _; do :; done
   if [ -n "$__rb_cur" ]; then
+    # Discard input typed during the run (full or partial lines) so it never
+    # executes as a command.
+    while read -r -s -t 0.05 -n 4096 _; do :; done
     printf '\033]777;rb-done;%s;%d\007' "$__rb_cur" "$__rb_rc"
     __rb_cur=''
   elif [ -z "$__rb_ready" ]; then
+    while read -r -s -t 0.05 -n 4096 _; do :; done
     # First prompt: only now is bash actually waiting for input.
     __rb_ready=1
     printf '\033]777;rb-ready\007'
   fi
-  # Like set -e, a cell's own INT trap ends with the cell.
-  trap - INT
+  # Any other prompt drains nothing: the host may already have written the next run
+  # line, which a drain would swallow.
 }
 PROMPT_COMMAND='__rb_after'
 
-stty -echo
+stty -echo noflsh
 ```
 
 Why this shape (verified against real bash under a pty):
@@ -233,7 +239,9 @@ Why this shape (verified against real bash under a pty):
 - Without the drain, input typed while a cell runs that the cell doesn't read is executed by bash as a new command once the run ends, and a partial line is glued onto the next `__rb_run` line. The drain costs about 50 ms per run.
 - Both `rb-ready` and `rb-done` are printed **after** the drain. The host writes the next `__rb_run` line as soon as it sees a marker; a marker printed before the drain would let the drain swallow that line.
 - `set +e` limits a cell's `set -e` to that cell (§6.5).
-- `__rb_after` ignores Ctrl+C until its marker is out. A Ctrl+C typed as a run ends would otherwise abort it before the marker, leaving the session busy forever. It does this first thing; saving a cell's INT trap would take a `$(trap -p INT)` subshell, and a Ctrl+C during that fork still got through. So, like `set -e`, an INT trap ends with its cell.
+- Bash ignores Ctrl+C except during a run: `__rb_after` sets `trap '' INT` first thing, and `__rb_run` sets `trap - INT` first thing. A Ctrl+C typed as a run ends would otherwise abort `__rb_after` before its marker, leaving the session busy forever. One reaching the idle prompt would make bash drop the start of the next `__rb_run` line (it reported `_rb_run: command not found`). So, like `set -e`, an INT trap ends with its cell. Saving and restoring it would take a `$(trap -p INT)` subshell, and a Ctrl+C during that fork still got through.
+- `stty noflsh`: by default a Ctrl+C flushes the terminal's output queue too, which can hold a marker bash has already written. A queued run would then wait forever. Set at startup and again in `__rb_after`, so a cell's own `stty` can't undo it. Input the cell didn't read is still discarded, by the drain.
+- The drain runs only after a run or before the first prompt. A drain at any other prompt could swallow a `__rb_run` line the host has already written.
 
 ### 6.3 Run protocol
 
@@ -290,6 +298,7 @@ interface Api {
   createNotebook(title: string): Promise<Notebook>; // slugified filename, unique
   renameNotebook(path: string, newTitle: string): Promise<Notebook>; // renames file + title
   deleteNotebook(path: string): Promise<void>; // moves to OS trash via shell.trashItem
+  showNotebookInFolder(path: string): Promise<void>; // shell.showItemInFolder
   searchNotebooks(query: string): Promise<SearchResult[]>; // { path, title, snippet }
 
   // execution
@@ -370,7 +379,7 @@ All main-process handlers must validate that any `path` argument resolves to a f
 
 ### 9.3 Notebook view
 
-- Header: editable title (click to edit), tags (comma-separated inline editor), session indicator dot (grey = no session, green = ready, amber = busy, red = dead) with a "Restart session" action.
+- Header: editable title (click to edit; the title names the file, so editing it renames the notebook like the sidebar's Rename, §8), tags (comma-separated inline editor), session indicator dot (grey = no session, green = ready, amber = busy, red = dead) with a "Restart session" action.
 - Cells in a vertical list. Hovering a cell shows a drag handle on the left and an "add cell below" control between cells.
 - **Markdown cell:** rendered by default. Click or Enter (when focused) switches to a CodeMirror editor; Esc or clicking outside renders it again.
 - **Links in rendered markdown:** `http:` and `https:` links open in the system browser. All other schemes (`file:`, `javascript:`, relative paths) do nothing.

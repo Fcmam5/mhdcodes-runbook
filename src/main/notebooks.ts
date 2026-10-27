@@ -1,7 +1,19 @@
 // Notebook storage: the files in the notebooks folder. No Electron imports, so it is
 // tested against real temp folders.
 
-import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import {
+  link,
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { parse, serialize } from "../shared/notebook";
 import type { Cell, Notebook, NotebookSummary } from "../shared/types";
@@ -52,7 +64,7 @@ export async function readNotebook(dir: string, path: unknown): Promise<Notebook
   return parse(await readFile(resolved, "utf8"), resolved);
 }
 
-// Saves of the same file, one after another, so two never share its temp file.
+// Writes in progress per file (see queueWrite).
 const saving = new Map<string, Promise<void>>();
 
 // Writes the notebook to its file atomically (SPEC §8): to `<file>.tmp`, then renamed
@@ -61,7 +73,133 @@ const saving = new Map<string, Promise<void>>();
 export async function saveNotebook(dir: string, value: unknown): Promise<void> {
   const notebook = toNotebook(value);
   const path = resolveNotebookPath(dir, notebook.path);
-  const text = serialize({ ...notebook, path });
+  await queueWrite(path, serialize({ ...notebook, path }));
+}
+
+// Creates an empty notebook named after its title (SPEC §8), never overwriting a file.
+export async function createNotebook(dir: string, title: unknown): Promise<Notebook> {
+  const clean = toTitle(title);
+  for (const name of await freeNames(dir, clean)) {
+    const notebook = emptyNotebook(join(resolve(dir), name), clean);
+    try {
+      // "wx": if the name was taken meanwhile, try the next one.
+      await writeFile(notebook.path, serialize(notebook), { flag: "wx" });
+      return notebook;
+    } catch (error) {
+      if (!isCode(error, "EEXIST")) throw error;
+    }
+  }
+  throw new Error("No free file name for this title");
+}
+
+// Gives the notebook a new title and a file named after it, keeping its contents.
+// Returns it as written; the caller keeps its own cells (their IDs key the run state).
+export async function renameNotebook(
+  dir: string,
+  path: unknown,
+  newTitle: unknown,
+): Promise<Notebook> {
+  const from = resolveNotebookPath(dir, path);
+  const title = toTitle(newTitle);
+  const notebook = parse(await readFile(from, "utf8"), from);
+  let to = from;
+  for (const name of await freeNames(dir, title, from)) {
+    const candidate = join(resolve(dir), name);
+    if (candidate === from || (await moveWithoutReplacing(from, candidate))) {
+      to = candidate;
+      break;
+    }
+  }
+  // Title and path change together: for a file without frontmatter, serialize()
+  // compares the title with the file name.
+  const renamed = { ...notebook, path: to, title };
+  await queueWrite(to, serialize(renamed));
+  return renamed;
+}
+
+// Moves the notebook to the OS trash (SPEC §7). `trash` is Electron's shell.trashItem.
+export async function deleteNotebook(
+  dir: string,
+  path: unknown,
+  trash: (path: string) => Promise<void>,
+): Promise<string> {
+  const resolved = resolveNotebookPath(dir, path);
+  await trash(resolved);
+  return resolved;
+}
+
+// "Fix audio after update" → "fix-audio-after-update". Letters and digits of any
+// script are kept, accents dropped (é → e); everything else becomes a single dash.
+export function slugify(title: string): string {
+  const slug = title
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .slice(0, 80)
+    .replace(/^-+|-+$/g, "");
+  return slug === "" ? "untitled" : slug;
+}
+
+// File names for a title in the order to try them: `slug.md`, `slug-2.md`, … skipping
+// names already in the folder, compared case-insensitively like listNotebooks does.
+// `own` is the notebook being renamed: its current name counts as free.
+async function freeNames(dir: string, title: string, own?: string): Promise<string[]> {
+  const taken = new Set(
+    (await readdir(dir))
+      .filter((name) => own === undefined || join(resolve(dir), name) !== own)
+      .map((name) => name.toLowerCase()),
+  );
+  const slug = slugify(title);
+  const names: string[] = [];
+  for (let n = 1; names.length < 20 && n < 1000; n++) {
+    const name = n === 1 ? `${slug}.md` : `${slug}-${n}.md`;
+    if (!taken.has(name)) names.push(name);
+  }
+  return names;
+}
+
+// Renames `from` to `to` unless `to` exists; false if it does. A hard link fails on an
+// existing name, where rename() would replace it. On filesystems without hard links
+// (FAT on a USB stick), it falls back to checking first.
+async function moveWithoutReplacing(from: string, to: string): Promise<boolean> {
+  try {
+    await link(from, to);
+  } catch (error) {
+    if (isCode(error, "EEXIST")) return false;
+    if (!isCode(error, "EPERM") && !isCode(error, "ENOTSUP") && !isCode(error, "EXDEV")) {
+      throw error;
+    }
+    if (
+      await lstat(to).then(
+        () => true,
+        () => false,
+      )
+    )
+      return false;
+    await rename(from, to);
+    return true;
+  }
+  await unlink(from);
+  return true;
+}
+
+function emptyNotebook(path: string, title: string): Notebook {
+  return { path, title, tags: [], frontmatterRaw: null, lineEnding: "\n", cells: [] };
+}
+
+function toTitle(value: unknown): string {
+  const title = typeof value === "string" ? value.trim() : "";
+  if (title === "") throw new Error("A notebook needs a title");
+  return title;
+}
+
+function isCode(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && error.code === code;
+}
+
+// Writes of the same file run one after another, so two never share its temp file.
+async function queueWrite(path: string, text: string): Promise<void> {
   const previous = saving.get(path) ?? Promise.resolve();
   const done = previous.catch(() => {}).then(() => writeAtomically(path, text));
   saving.set(path, done);

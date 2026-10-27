@@ -30,6 +30,10 @@ export interface RunStore extends Readable<RunsByNotebook> {
   dismissEnd(notebookPath: string): void;
   // Drops a deleted cell's entry.
   forgetCell(notebookPath: string, cellId: string): void;
+  // Moves a renamed notebook's entry to its new path.
+  renameNotebook(from: string, to: string): void;
+  // Drops a deleted notebook's entry.
+  forgetNotebook(notebookPath: string): void;
 }
 
 export function createRunStore(): RunStore {
@@ -69,6 +73,14 @@ export function createRunStore(): RunStore {
         const { [cellId]: _forgotten, ...cells } = runs.cells;
         return { ...runs, cells };
       });
+    },
+    renameNotebook(from, to) {
+      if (from === to || !get(store)[from]) return;
+      update(({ [from]: moved, ...rest }) => (moved ? { ...rest, [to]: moved } : rest));
+    },
+    forgetNotebook(path) {
+      if (!get(store)[path]) return;
+      update(({ [path]: _forgotten, ...rest }) => rest);
     },
   };
 }

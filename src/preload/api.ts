@@ -30,6 +30,11 @@ export interface Api {
   readNotebook: (path: string) => Promise<Notebook>;
   getSettings: () => Promise<Settings>;
   saveNotebook: (notebook: Notebook) => Promise<void>; // atomic write
+  createNotebook: (title: string) => Promise<Notebook>; // slugified filename, unique
+  // Renames the file after the title and updates the title; a live session moves along.
+  renameNotebook: (path: string, newTitle: string) => Promise<Notebook>;
+  deleteNotebook: (path: string) => Promise<void>; // moves it to the OS trash
+  showNotebookInFolder: (path: string) => Promise<void>;
   // Runs the callback when the window is about to close, then lets it close.
   onFlushRequest: (callback: () => Promise<void>) => void;
 

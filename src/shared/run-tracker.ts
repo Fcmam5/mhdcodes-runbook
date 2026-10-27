@@ -50,6 +50,14 @@ export interface RunTracker<P extends TrackedPane> {
   stopCell(notebookPath: string, cellId: string): void;
   // Frees everything kept for a deleted cell: its pane and its run-store entry.
   forgetCell(notebookPath: string, cellId: string): void;
+  // Moves a renamed notebook's panes and run state to its new path (SPEC §6.6). Call it
+  // as soon as main's rename reply arrives, before awaiting anything else.
+  renameNotebook(from: string, to: string): void;
+  // Frees everything kept for a deleted notebook.
+  forgetNotebook(notebookPath: string): void;
+  // A notebook now lives at `path` (just created there): events for it are its own,
+  // not a renamed notebook's that used to live there.
+  claimPath(path: string): void;
 }
 
 // A NUL can't appear in a path, so it can't make two keys collide.
@@ -71,6 +79,18 @@ export function createRunTracker<P extends TrackedPane>(
   // still print; their events are dropped so nothing is recreated for them. Cell IDs
   // are never reused, so the set only grows by one per deleted cell that had run.
   const forgotten = new Set<string>();
+  // Old paths of renamed notebooks, to their new ones. Events main sent before the
+  // rename (output it was still batching), runs requested before it, and panes
+  // created before it all still name the old path.
+  const renamedTo = new Map<string, string>();
+
+  function currentPath(path: string): string {
+    let current = path;
+    for (let hops = 0; renamedTo.has(current) && hops < 100; hops++) {
+      current = renamedTo.get(current) ?? current;
+    }
+    return current;
+  }
 
   // The store's latest value, for the checks on every keystroke and output chunk.
   let latest: RunsByNotebook = {};
@@ -93,10 +113,12 @@ export function createRunTracker<P extends TrackedPane>(
     const pane = createPane({
       // Only the running cell's pane types into the shell (SPEC §6.3.6).
       onInput: (data) => {
-        if (isRunning(notebookPath, cellId)) void api.sendInput(notebookPath, data);
+        const path = currentPath(notebookPath);
+        if (isRunning(path, cellId)) void api.sendInput(path, data);
       },
       onResize: ({ cols, rows }) => {
-        if (isRunning(notebookPath, cellId)) void api.resizeSession(notebookPath, cols, rows);
+        const path = currentPath(notebookPath);
+        if (isRunning(path, cellId)) void api.resizeSession(path, cols, rows);
       },
     });
     let notebookPanes = panes.get(notebookPath);
@@ -111,7 +133,8 @@ export function createRunTracker<P extends TrackedPane>(
     paneFor,
 
     start() {
-      api.onCellStatus((event) => {
+      api.onCellStatus((sent) => {
+        const event = { ...sent, notebookPath: currentPath(sent.notebookPath) };
         const { cellId, state } = event.status;
         if (isForgotten(event.notebookPath, cellId)) return;
         const pane =
@@ -125,46 +148,49 @@ export function createRunTracker<P extends TrackedPane>(
         pane?.setRunning(state === "running");
         runs.onStatus(event);
       });
-      api.onCellOutput(({ notebookPath, cellId, data }) => {
+      api.onCellOutput((sent) => {
+        const { cellId, data } = sent;
+        const notebookPath = currentPath(sent.notebookPath);
         if (isForgotten(notebookPath, cellId)) return;
         const pane = existingPane(notebookPath, cellId);
         pane?.write(data);
         // A running cell may be waiting for input (a password, [Y/n]).
         if (isRunning(notebookPath, cellId)) pane?.offerFocus();
       });
-      api.onSessionState((event) => runs.onSessionState(event));
+      api.onSessionState((event) =>
+        runs.onSessionState({ ...event, notebookPath: currentPath(event.notebookPath) }),
+      );
     },
 
-    async runCell(notebookPath, cellId, source) {
-      const id = key(notebookPath, cellId);
-      stoppedEarly.delete(id);
-      runs.setRequested(notebookPath, cellId, true);
-      runs.setError(notebookPath, cellId, null);
+    async runCell(requestedPath, cellId, source) {
+      // The notebook may be renamed while this runs: always use its current path.
+      const path = (): string => currentPath(requestedPath);
+      stoppedEarly.delete(key(path(), cellId));
+      runs.setRequested(path(), cellId, true);
+      runs.setError(path(), cellId, null);
       try {
         // Every pane in a notebook has the same width, so sizing the shell to this one
         // is right even if another cell is still running ahead of it.
-        const { cols, rows } = paneFor(notebookPath, cellId).size;
-        await api.resizeSession(notebookPath, cols, rows);
+        const { cols, rows } = paneFor(path(), cellId).size;
+        await api.resizeSession(path(), cols, rows);
         // A Stop clicked meanwhile found nothing to cancel in main yet.
-        if (stoppedEarly.has(id)) return;
-        await api.runCell(notebookPath, cellId, source);
+        if (stoppedEarly.has(key(path(), cellId))) return;
+        await api.runCell(path(), cellId, source);
       } catch (cause) {
-        if (!isForgotten(notebookPath, cellId)) {
-          runs.setError(notebookPath, cellId, messageOf(cause));
-        }
+        if (!isForgotten(path(), cellId)) runs.setError(path(), cellId, messageOf(cause));
       } finally {
-        stoppedEarly.delete(id);
+        stoppedEarly.delete(key(path(), cellId));
         // The cell may have been deleted while its run went on.
-        if (!isForgotten(notebookPath, cellId)) runs.setRequested(notebookPath, cellId, false);
+        if (!isForgotten(path(), cellId)) runs.setRequested(path(), cellId, false);
       }
     },
 
-    stopCell(notebookPath, cellId) {
-      stoppedEarly.add(key(notebookPath, cellId));
-      api.cancelCell(notebookPath, cellId).catch((cause: unknown) => {
-        if (!isForgotten(notebookPath, cellId)) {
-          runs.setError(notebookPath, cellId, messageOf(cause));
-        }
+    stopCell(requestedPath, cellId) {
+      const path = currentPath(requestedPath);
+      stoppedEarly.add(key(path, cellId));
+      api.cancelCell(path, cellId).catch((cause: unknown) => {
+        const now = currentPath(path);
+        if (!isForgotten(now, cellId)) runs.setError(now, cellId, messageOf(cause));
       });
     },
 
@@ -176,6 +202,42 @@ export function createRunTracker<P extends TrackedPane>(
       pane?.dispose();
       panes.get(notebookPath)?.delete(cellId);
       runs.forgetCell(notebookPath, cellId);
+    },
+
+    renameNotebook(from, to) {
+      if (from === to) return;
+      renamedTo.delete(to);
+      renamedTo.set(from, to);
+      const moved = panes.get(from);
+      panes.delete(from);
+      if (moved) panes.set(to, moved);
+      // Copies: the loops add to the sets they walk.
+      for (const id of Array.from(forgotten)) {
+        if (!id.startsWith(`${from}\0`)) continue;
+        forgotten.delete(id);
+        forgotten.add(`${to}${id.slice(from.length)}`);
+      }
+      for (const id of Array.from(stoppedEarly)) {
+        if (!id.startsWith(`${from}\0`)) continue;
+        stoppedEarly.delete(id);
+        stoppedEarly.add(`${to}${id.slice(from.length)}`);
+      }
+      runs.renameNotebook(from, to);
+    },
+
+    claimPath(path) {
+      renamedTo.delete(path);
+    },
+
+    forgetNotebook(notebookPath) {
+      const notebookPanes = panes.get(notebookPath);
+      // Like forgetCell for each cell that ran: its last events may still be on the way.
+      for (const [cellId, pane] of notebookPanes ?? []) {
+        forgotten.add(key(notebookPath, cellId));
+        pane.dispose();
+      }
+      panes.delete(notebookPath);
+      runs.forgetNotebook(notebookPath);
     },
   };
 }

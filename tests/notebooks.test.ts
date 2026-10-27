@@ -17,8 +17,12 @@ import {
   ensureNotebooksDir,
   listNotebooks,
   readNotebook,
+  createNotebook,
+  deleteNotebook,
+  renameNotebook,
   resolveNotebookPath,
   saveNotebook,
+  slugify,
 } from "../src/main/notebooks";
 import { WELCOME_NOTEBOOK } from "../src/main/welcome";
 import { parse, serialize } from "../src/shared/notebook";
@@ -255,5 +259,133 @@ describe("saveNotebook", () => {
     const value = change === null ? null : { ...notebook, ...change };
     await expect(saveNotebook(dir, value)).rejects.toThrow("Invalid notebook");
     expect(await readFile(notebook.path, "utf8")).toBe(TEXT);
+  });
+});
+
+describe("slugify", () => {
+  it.each([
+    ["Fix audio after update", "fix-audio-after-update"],
+    ["  Crème brûlée: notes!  ", "creme-brulee-notes"],
+    ["Ünïcödé — and (more)", "unicode-and-more"],
+    ["Привет мир", "привет-мир"],
+    ["2026/10 release", "2026-10-release"],
+    ["!!!", "untitled"],
+    ["../../etc/passwd", "etc-passwd"],
+  ])("%j → %j", (title, slug) => {
+    expect(slugify(title)).toBe(slug);
+  });
+
+  it("keeps file names to 80 characters, without a trailing dash", () => {
+    const slug = slugify(`${"a".repeat(79)} b`);
+    expect(slug).toBe("a".repeat(79));
+  });
+});
+
+describe("createNotebook", () => {
+  it("creates an empty notebook named after its title", async () => {
+    await mkdir(dir, { recursive: true });
+    const notebook = await createNotebook(dir, "  Fix audio after update ");
+    expect(notebook).toMatchObject({ title: "Fix audio after update", tags: [], cells: [] });
+    expect(notebook.path).toBe(join(dir, "fix-audio-after-update.md"));
+    expect(await readFile(notebook.path, "utf8")).toBe(
+      "---\ntitle: Fix audio after update\ntags: []\n---\n",
+    );
+    expect(await readNotebook(dir, notebook.path)).toMatchObject({
+      title: "Fix audio after update",
+    });
+  });
+
+  it("adds -2, -3, … when the name is taken, ignoring case", async () => {
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "Notes.md"), "keep me");
+    const second = await createNotebook(dir, "Notes");
+    const third = await createNotebook(dir, "notes");
+    expect([second.path, third.path]).toEqual([join(dir, "notes-2.md"), join(dir, "notes-3.md")]);
+    expect(await readFile(join(dir, "Notes.md"), "utf8")).toBe("keep me");
+  });
+
+  it("refuses a blank title", async () => {
+    await mkdir(dir, { recursive: true });
+    await expect(createNotebook(dir, "   ")).rejects.toThrow("needs a title");
+    expect(await readdir(dir)).toEqual([]);
+  });
+});
+
+async function file(name: string, text: string): Promise<string> {
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, name), text);
+  return join(dir, name);
+}
+
+describe("renameNotebook", () => {
+  it("renames the file after the new title and updates the title in it", async () => {
+    const path = await file("old.md", "---\ntitle: Old # comment\ntags: [a]\n---\n\nBody\n");
+    const renamed = await renameNotebook(dir, path, "Brand new");
+    expect(renamed).toMatchObject({ path: join(dir, "brand-new.md"), title: "Brand new" });
+    expect(await readdir(dir)).toEqual(["brand-new.md"]);
+    expect(await readFile(renamed.path, "utf8")).toBe(
+      "---\ntitle: Brand new # comment\ntags: [a]\n---\n\nBody\n",
+    );
+  });
+
+  it("gives a file without frontmatter one with the new title", async () => {
+    const path = await file("plain.md", "Body\n");
+    const renamed = await renameNotebook(dir, path, "Plain notes");
+    expect(await readFile(renamed.path, "utf8")).toBe(
+      "---\ntitle: Plain notes\ntags: []\n---\n\nBody\n",
+    );
+  });
+
+  it("never replaces another notebook", async () => {
+    const path = await file("a.md", "---\ntitle: A\n---\n");
+    await file("b.md", "other");
+    const renamed = await renameNotebook(dir, path, "B");
+    expect(renamed.path).toBe(join(dir, "b-2.md"));
+    expect(await readFile(join(dir, "b.md"), "utf8")).toBe("other");
+  });
+
+  it("keeps the file where it is when the name doesn't change", async () => {
+    const path = await file("notes.md", "---\ntitle: notes\n---\n");
+    const renamed = await renameNotebook(dir, path, "Notes");
+    expect(renamed.path).toBe(path);
+    expect(await readFile(path, "utf8")).toBe("---\ntitle: Notes\n---\n");
+  });
+
+  it("keeps a symlinked notebook a symlink", async () => {
+    await mkdir(dir, { recursive: true });
+    const real = join(root, "elsewhere.md");
+    await writeFile(real, "---\ntitle: Linked\n---\n");
+    await symlink(real, join(dir, "linked.md"));
+    const renamed = await renameNotebook(dir, join(dir, "linked.md"), "Moved link");
+    expect((await lstat(renamed.path)).isSymbolicLink()).toBe(true);
+    expect(await readFile(real, "utf8")).toBe("---\ntitle: Moved link\n---\n");
+  });
+
+  it("refuses a blank title or a path outside the folder", async () => {
+    const path = await file("a.md", "x");
+    await expect(renameNotebook(dir, path, " ")).rejects.toThrow("needs a title");
+    await expect(renameNotebook(dir, join(root, "a.md"), "B")).rejects.toThrow();
+    expect(await readdir(dir)).toEqual(["a.md"]);
+  });
+});
+
+describe("deleteNotebook", () => {
+  it("hands the resolved path to the trash", async () => {
+    const trashed: string[] = [];
+    const path = await deleteNotebook(dir, join(dir, "sub/../a.md"), async (p) => {
+      trashed.push(p);
+    });
+    expect(trashed).toEqual([join(dir, "a.md")]);
+    expect(path).toBe(join(dir, "a.md"));
+  });
+
+  it("refuses a path outside the folder, without trashing anything", async () => {
+    const trashed: string[] = [];
+    await expect(
+      deleteNotebook(dir, "/etc/hosts.md", async (p) => {
+        trashed.push(p);
+      }),
+    ).rejects.toThrow();
+    expect(trashed).toEqual([]);
   });
 });

@@ -22,6 +22,10 @@ const api: Api = {
   readNotebook: (path) => ipcRenderer.invoke("notebooks:read", path),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveNotebook: (notebook) => ipcRenderer.invoke("notebooks:save", notebook),
+  createNotebook: (title) => ipcRenderer.invoke("notebooks:create", title),
+  renameNotebook: (path, newTitle) => ipcRenderer.invoke("notebooks:rename", path, newTitle),
+  deleteNotebook: (path) => ipcRenderer.invoke("notebooks:delete", path),
+  showNotebookInFolder: (path) => ipcRenderer.invoke("notebooks:reveal", path),
   // A request and reply, not a channel(): main waits for exactly one "flushed" reply,
   // sent once the callback's saves settle. Register a single handler (saveOnClose).
   onFlushRequest: (callback) => {

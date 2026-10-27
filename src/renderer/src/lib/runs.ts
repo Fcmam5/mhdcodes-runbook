@@ -6,7 +6,17 @@ import { OutputPane } from "./output-pane";
 
 const tracker = createRunTracker(window.api, (callbacks) => new OutputPane(callbacks));
 
-export const { runs, existingPane, paneFor, runCell, stopCell, forgetCell } = tracker;
+export const {
+  runs,
+  existingPane,
+  paneFor,
+  runCell,
+  stopCell,
+  forgetCell,
+  renameNotebook: renameRuns,
+  forgetNotebook: forgetRuns,
+  claimPath,
+} = tracker;
 
 // Subscribes to the main process's events, once, for the window's lifetime.
 export function trackRuns(): void {

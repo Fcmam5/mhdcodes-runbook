@@ -27,6 +27,8 @@ export interface SessionManagerEvents {
 
 export class SessionManager extends EventEmitter<SessionManagerEvents> {
   private readonly sessions = new Map<string, ShellSession>();
+  // Each session's notebook path, read when forwarding its events: it changes on rename.
+  private readonly paths = new WeakMap<ShellSession, string>();
   // The last size the renderer reported per notebook, so a new session starts at it.
   private readonly sizes = new Map<string, { cols: number; rows: number }>();
   private prepared: Promise<string> | null = null;
@@ -51,14 +53,16 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     const tempRoot = await this.prepare().finally(() => this.preparing.delete(request));
     // dispose() may have run while we waited; a session started now would be orphaned.
     if (this.disposed) throw new Error("Shell sessions are shut down");
+    // The notebook may have been renamed while we waited.
+    const path = request.notebookPath;
     if (request.cancelled) {
       const status: CellRunStatus = { cellId, state: "idle" };
-      this.emit("status", { notebookPath, status });
+      this.emit("status", { notebookPath: path, status });
       return status;
     }
-    let session = this.sessions.get(notebookPath);
+    let session = this.sessions.get(path);
     if (!session || session.state === "dead") {
-      session = this.createSession(notebookPath, tempRoot);
+      session = this.createSession(path, tempRoot);
     }
     return session.run(cellId, source);
   }
@@ -90,6 +94,23 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     if (this.disposed) throw new Error("Shell sessions are shut down");
     this.close(notebookPath);
     this.createSession(notebookPath, tempRoot);
+  }
+
+  // Moves the notebook's session to its new path, without restarting it (SPEC §6.6).
+  rename(from: string, to: string): void {
+    if (from === to) return;
+    for (const request of this.preparing) {
+      if (request.notebookPath === from) request.notebookPath = to;
+    }
+    const session = this.sessions.get(from);
+    if (session) {
+      this.sessions.delete(from);
+      this.sessions.set(to, session);
+      this.paths.set(session, to);
+    }
+    const size = this.sizes.get(from);
+    this.sizes.delete(from);
+    if (size) this.sizes.set(to, size);
   }
 
   // Kills the notebook's shell, e.g. when the notebook is deleted. The next run
@@ -147,10 +168,12 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
         ? {}
         : { readyTimeoutMs: this.options.readyTimeoutMs }),
     });
-    session.on("output", (event) => this.emit("output", { notebookPath, ...event }));
-    session.on("status", (status) => this.emit("status", { notebookPath, status }));
+    this.paths.set(session, notebookPath);
+    const path = (): string => this.paths.get(session) ?? notebookPath;
+    session.on("output", (event) => this.emit("output", { notebookPath: path(), ...event }));
+    session.on("status", (status) => this.emit("status", { notebookPath: path(), status }));
     session.on("state", (state, end) =>
-      this.emit("state", { notebookPath, state, ...(end === undefined ? {} : { end }) }),
+      this.emit("state", { notebookPath: path(), state, ...(end === undefined ? {} : { end }) }),
     );
     this.sessions.set(notebookPath, session);
     session.start();

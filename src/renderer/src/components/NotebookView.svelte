@@ -5,7 +5,6 @@
     insertCell,
     setCellSource,
     setTags,
-    setTitle,
   } from "../../../shared/notebook-edits";
   import { NO_NOTEBOOK_RUNS } from "../../../shared/run-store";
   import { startupExcerpt } from "../../../shared/startup-excerpt";
@@ -19,7 +18,9 @@
   import SessionNotice from "./SessionNotice.svelte";
   import ShellCell from "./ShellCell.svelte";
 
-  const { notebook }: { notebook: Notebook } = $props();
+  // onrename: the title also names the file, so editing it renames the notebook (SPEC §8).
+  const { notebook, onrename }: { notebook: Notebook; onrename: (title: string) => void } =
+    $props();
 
   // The session state and its notice live in the run store, so they survive switching.
   const { session, end } = $derived($runs[notebook.path] ?? NO_NOTEBOOK_RUNS);
@@ -59,7 +60,9 @@
           value={notebook.title}
           label="Title"
           inputClass="text-2xl font-semibold tracking-tight"
-          oncommit={(title) => edit((current) => setTitle(current, title))}
+          oncommit={(title) => {
+            if (title.trim() !== "" && title.trim() !== notebook.title) onrename(title);
+          }}
         >
           <h1 class="truncate text-2xl font-semibold tracking-tight">{notebook.title}</h1>
         </InlineEdit>

@@ -203,6 +203,9 @@ describe.concurrent("SessionManager with real bash", () => {
     events: { outputOf },
   }) => {
     const run = manager.run(NOTEBOOK, "c1", "echo go; sleep 10");
+    // Queued, so its run line is written the moment c1 ends: a Ctrl+C reaching the idle
+    // prompt right then must not lose it.
+    const next = manager.run(NOTEBOOK, "c2", "echo next");
     await sendWhenStarted(manager, outputOf, "c1", "\x03");
     // Keep pressing Ctrl+C, so some land while the rcfile is ending the run.
     const presses = setInterval(() => manager.sendInput(NOTEBOOK, "\x03"), 5);
@@ -211,8 +214,9 @@ describe.concurrent("SessionManager with real bash", () => {
     } finally {
       clearInterval(presses);
     }
-    expect(await manager.run(NOTEBOOK, "c2", "echo next")).toMatchObject({ state: "success" });
+    expect(await next).toMatchObject({ state: "success" });
     expect(outputOf("c2")).toBe("next\n");
+    expect(await manager.run(NOTEBOOK, "c3", "echo after")).toMatchObject({ state: "success" });
   });
 
   it("sends a single Ctrl+C for a stop well after the start", async ({
@@ -497,6 +501,22 @@ describe.concurrent("SessionManager with real bash", () => {
     await manager.run(NOTEBOOK, "c3", "pwd");
     expect(outputOf("c3")).toBe(`${root}\n`);
     expect(ends).toEqual([]);
+  });
+
+  it("moves a session to a renamed notebook without restarting it", async ({
+    manager,
+    events: { states, outputOf },
+  }) => {
+    const paths = new Set<string>();
+    manager.on("output", ({ notebookPath }) => paths.add(notebookPath));
+    manager.on("status", ({ notebookPath }) => paths.add(notebookPath));
+    await manager.run("/notebooks/old.md", "c1", "cd /tmp");
+    paths.clear();
+    manager.rename("/notebooks/old.md", "/notebooks/new.md");
+    await manager.run("/notebooks/new.md", "c2", "pwd");
+    expect(outputOf("c2")).toBe("/tmp\n");
+    expect([...paths]).toEqual(["/notebooks/new.md"]);
+    expect(states.filter((state) => state === "starting")).toHaveLength(1);
   });
 
   it("fails runs, without hanging, when the shell can't start", async ({ root }) => {
