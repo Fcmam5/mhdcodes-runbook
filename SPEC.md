@@ -23,7 +23,7 @@ A developer or Linux power user who keeps re-Googling the same fixes and setup s
 ### In scope (MVP)
 
 1. Notebook editor with two cell types: **Markdown** and **Shell**.
-2. Add, edit, delete, and reorder cells.
+2. Add, edit, and delete cells.
 3. Run a shell cell in a persistent per-notebook bash session (via `node-pty`), with live, colored output rendered by `xterm.js`. Sessions stay alive when switching notebooks (§6.6).
 4. Interactive input into a running cell (e.g. `sudo` password prompts, `[Y/n]` questions).
 5. Stop a running cell (send Ctrl+C).
@@ -31,13 +31,15 @@ A developer or Linux power user who keeps re-Googling the same fixes and setup s
 7. Restart a notebook's shell session.
 8. Store notebooks as `.md` files in a notebooks folder; autosave.
 9. Sidebar listing all notebooks, with create / rename / delete and full-text search.
-10. Minimal settings: notebooks folder location.
+10. Minimal settings: the notebooks folder location, read from `settings.json` (there is no settings UI).
 11. Keyboard shortcuts (§9.5).
 12. Packaging as `.deb` and AppImage (Linux only).
 
 ### Out of scope (do NOT build yet)
 
-Input/variable cells, check cells, run history persistence (SQLite), "run all", danger-command detection, terminal capture mode, templates, AI features, SSH/remote targets, scheduling, shells other than bash, Windows/macOS support (including macOS build targets), cloud sync, multiple windows, tabs. Leave clean extension points, but no stub UI for these.
+Planned for v2: reordering cells (drag and drop, move up/down), a settings UI with a notebooks folder picker, and picking up changes made to notebook files outside the app.
+
+Also out of scope: input/variable cells, check cells, run history persistence (SQLite), "run all", danger-command detection, terminal capture mode, templates, AI features, SSH/remote targets, scheduling, shells other than bash, Windows/macOS support (including macOS build targets), cloud sync, multiple windows, tabs. Leave clean extension points, but no stub UI for these.
 
 ---
 
@@ -279,7 +281,7 @@ Why this shape (verified against real bash under a pty):
 ### 6.6 Session lifetime
 
 - Sessions are keyed by notebook path and **stay alive when switching notebooks**: running cells keep running in the background. The renderer keeps each visited notebook's per-cell output (xterm buffers, capped by the 5000-line scrollback) and run statuses in memory, so switching back shows everything as it was.
-- A session ends only on: restart (§6.3.8), the shell exiting (§6.3.7), deleting the notebook, changing the notebooks folder (all sessions are closed), or app quit.
+- A session ends only on: restart (§6.3.8), the shell exiting (§6.3.7), deleting the notebook, or app quit.
 - Renaming a notebook moves its session to the new path without restarting it.
 
 ---
@@ -311,7 +313,6 @@ interface Api {
 
   // settings
   getSettings(): Promise<Settings>; // { notebooksDir }
-  setNotebooksDir(): Promise<Settings | null>; // opens folder picker
 
   // events (main -> renderer); each returns an unsubscribe function
   onCellOutput(cb: (e: { notebookPath: string; cellId: string; data: string }) => void): () => void;
@@ -342,7 +343,6 @@ All main-process handlers must validate that any `path` argument resolves to a f
 - Settings live in `app.getPath('userData')/settings.json`. `userData` is named after the app ID, not the product name: `~/.config/com.codiume.runbook`.
 - On first launch, if the folder is empty, create one sample notebook (`Welcome.md`) demonstrating markdown cells, a `cd` + `pwd` persistence example, and an `echo` with colors.
 - **Autosave:** debounce 500 ms after the last edit; also save on notebook switch and window close. Writes are atomic: write `<file>.tmp`, then `fs.rename`.
-- **External changes:** on window focus, re-scan the folder for the sidebar. If the open notebook's file `mtime` changed and there are no unsaved local edits, reload it silently; if there are unsaved edits, show a banner: "This file changed on disk. Reload / Keep mine."
 - Filenames: slugify the title (`Fix audio after update` → `fix-audio-after-update.md`), adding `-2`, `-3`, etc. on collision.
 
 ---
@@ -364,7 +364,7 @@ All main-process handlers must validate that any `path` argument resolves to a f
 │               │   ✓ exit 0 · 0.4s                             │
 │               │  ┌ output (xterm) ──────────────────────────┐ │
 │               │  │ …                                        │ │
-│ [⚙ Settings]  │  └──────────────────────────────────────────┘ │
+│               │  └──────────────────────────────────────────┘ │
 │               │            [+ Markdown]  [+ Shell]            │
 └───────────────┴───────────────────────────────────────────────┘
 ```
@@ -375,15 +375,14 @@ All main-process handlers must validate that any `path` argument resolves to a f
 - "+ New" opens an inline title input and then opens the new notebook.
 - Right-click (or ⋮) on an item: Rename, Delete (with confirm dialog), Show in folder.
 - Notebooks with a live session show the session dot (same colours as the header), so a cell still running in the background is visible.
-- Settings button at the bottom.
 
 ### 9.3 Notebook view
 
 - Header: editable title (click to edit; the title names the file, so editing it renames the notebook like the sidebar's Rename, §8), tags (comma-separated inline editor), session indicator dot (grey = no session, green = ready, amber = busy, red = dead) with a "Restart session" action.
-- Cells in a vertical list. Hovering a cell shows a drag handle on the left and an "add cell below" control between cells.
+- Cells in a vertical list, with an "add cell below" control between cells that shows on hover.
 - **Markdown cell:** rendered by default. Click or Enter (when focused) switches to a CodeMirror editor; Esc or clicking outside renders it again.
 - **Links in rendered markdown:** `http:` and `https:` links open in the system browser. All other schemes (`file:`, `javascript:`, relative paths) do nothing.
-- **Shell cell:** always shows a CodeMirror editor (bash highlighting, monospace). Toolbar: Run ▶ (becomes Stop ■ while running or queued), and a menu ⋮ with "Clear output", "Delete cell", "Move up", "Move down".
+- **Shell cell:** always shows a CodeMirror editor (bash highlighting, monospace). Toolbar: Run ▶ (becomes Stop ■ while running or queued), and a menu ⋮ with "Clear output" and "Delete cell".
 - **Status line** under a shell cell after its first run: spinner + "running…", "queued", "✓ exit 0 · 1.2s", "✗ exit 2 · 0.3s", or "■ interrupted".
 - **Output pane:** an xterm.js instance created on first run of that cell. Auto-height up to 400 px, then it scrolls (scrollback 5000 lines). Each new run clears the previous output. Clicking into the pane while the cell runs focuses it for typing input. When a running cell prints output and the keyboard focus is free (on nothing, or still on that cell's Run/Stop button), the pane takes focus by itself, so a prompt like `sudo`'s password can be answered without a click; focus the user has put elsewhere is never taken. Hide the pane if output is empty.
 - **Session notices** (shell didn't start, session ended) appear at the top of the notebook view (§6.3).
@@ -405,7 +404,6 @@ All main-process handlers must validate that any `path` argument resolves to a f
 | `Ctrl+.`               | Stop the running (or dequeue the queued) focused cell      |
 | `Enter`                | Edit the focused markdown cell                             |
 | `Esc`                  | Leave the cell editor or the output pane                   |
-| `Alt+↑` / `Alt+↓`      | Move the focused cell up / down                            |
 | `Ctrl+Shift+Backspace` | Delete the focused cell                                    |
 | `Ctrl+N`               | New notebook                                               |
 | `Ctrl+K`               | Focus search                                               |
@@ -453,14 +451,14 @@ The scaffolding is already Linux-only: `electron-builder.yml` targets `deb` and 
 
 ### M3 — Notebook UI
 
-- Notebook view with markdown and shell cells, editing, add/delete, drag-and-drop reorder, run/stop, status line, xterm output, input to running cell, autosave (§9). Sessions and output survive switching notebooks (§6.6).
+- Notebook view with markdown and shell cells, editing, add/delete, run/stop, status line, xterm output, input to running cell, autosave (§9). Sessions and output survive switching notebooks (§6.6).
 - Wire everything through the preload API (§7).
-- ✅ Manual check: open the Welcome notebook, run the `cd`/`pwd` example and see persistence; run `sudo -v` and type a password into the output pane; reorder cells and confirm the `.md` file on disk reflects the new order; start `sleep 30` in one notebook, switch to another and back, and see it still running.
+- ✅ Manual check: open the Welcome notebook, run the `cd`/`pwd` example and see persistence; run `sudo -v` and type a password into the output pane; start `sleep 30` in one notebook, switch to another and back, and see it still running.
 
-### M4 — Sidebar, search, settings
+### M4 — Sidebar, search, shortcuts
 
-- Sidebar list, create/rename/delete, search with snippets, settings folder picker, external-change handling, window size persistence, keyboard shortcuts (§9.5).
-- ✅ Changing the notebooks folder reloads the sidebar; editing a file in another editor reloads it in the app; all shortcuts in §9.5 work.
+- Sidebar list, create/rename/delete, search with snippets, window size persistence, keyboard shortcuts (§9.5).
+- ✅ All shortcuts in §9.5 work.
 
 ---
 
