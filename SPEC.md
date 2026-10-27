@@ -180,7 +180,6 @@ Written once to `app.getPath('userData')/rcfile.bash`:
 
 ```bash
 # Load the user's normal environment
-[ -f /etc/bash.bashrc ] && source /etc/bash.bashrc
 [ -f ~/.profile ] && source ~/.profile
 [ -f ~/.bashrc ] && source ~/.bashrc
 
@@ -204,9 +203,7 @@ __rb_run() {
 __rb_after() {
   local __rb_rc=$?
   # Ignore Ctrl+C until the marker is out: one typed as the run ends would abort
-  # this function, and no marker would come. A cell's own INT trap is restored.
-  local __rb_int
-  __rb_int=$(trap -p INT)
+  # this function, and no marker would come. First thing, so the gap is tiny.
   trap '' INT
   stty -echo
   set +e
@@ -221,7 +218,8 @@ __rb_after() {
     __rb_ready=1
     printf '\033]777;rb-ready\007'
   fi
-  if [ -n "$__rb_int" ]; then eval "$__rb_int"; else trap - INT; fi
+  # Like set -e, a cell's own INT trap ends with the cell.
+  trap - INT
 }
 PROMPT_COMMAND='__rb_after'
 
@@ -230,11 +228,12 @@ stty -echo
 
 Why this shape (verified against real bash under a pty):
 
+- It sources only the user's own `~/.profile` and `~/.bashrc`. A bash built to read `/etc/bash.bashrc` (Debian, Ubuntu, Arch) reads it by itself, even with `--rcfile`, so sourcing it here would run it twice.
 - Ctrl+C makes bash abandon the whole `__rb_run` function, so anything after `source` never runs. `PROMPT_COMMAND` still runs before the next prompt, so the done marker, `stty -echo`, and `set +e` live there.
 - Without the drain, input typed while a cell runs that the cell doesn't read is executed by bash as a new command once the run ends, and a partial line is glued onto the next `__rb_run` line. The drain costs about 50 ms per run.
 - Both `rb-ready` and `rb-done` are printed **after** the drain. The host writes the next `__rb_run` line as soon as it sees a marker; a marker printed before the drain would let the drain swallow that line.
 - `set +e` limits a cell's `set -e` to that cell (§6.5).
-- `__rb_after` ignores Ctrl+C until its marker is out. A Ctrl+C typed as a run ends would otherwise abort it before the marker, leaving the session busy forever. A cell's own INT trap is saved and restored.
+- `__rb_after` ignores Ctrl+C until its marker is out. A Ctrl+C typed as a run ends would otherwise abort it before the marker, leaving the session busy forever. It does this first thing; saving a cell's INT trap would take a `$(trap -p INT)` subshell, and a Ctrl+C during that fork still got through. So, like `set -e`, an INT trap ends with its cell.
 
 ### 6.3 Run protocol
 
@@ -265,7 +264,7 @@ Why this shape (verified against real bash under a pty):
 
 - Full-screen TUI apps (`vim`, `htop`) will render oddly in the small inline output; that's acceptable.
 - A cell that starts a background job (`cmd &`) may keep printing after `rb-done`; that output is routed to the last-run cell.
-- `set -e` is reset after each cell, but a failing command in the **same** cell that enabled it still ends the session (bash exits from a sourced file under `set -e`). `exit` ends the session too. `set -u` and `set -o pipefail` persist across cells, as in a terminal.
+- `set -e` is reset after each cell, but a failing command in the **same** cell that enabled it still ends the session (bash exits from a sourced file under `set -e`). `exit` ends the session too. `set -u` and `set -o pipefail` persist across cells, as in a terminal. An INT trap (`trap … INT`) ends with its cell (§6.2).
 - A cell that overrides `PROMPT_COMMAND` or `stty` settings can break the run protocol; restarting the session recovers.
 - Input typed in the instant a run ends (after the drain in `__rb_after`, before the host has read `rb-done`) reaches the prompt and runs as a command. The window is well under a millisecond plus the keystroke's IPC trip.
 
@@ -308,8 +307,16 @@ interface Api {
   // events (main -> renderer); each returns an unsubscribe function
   onCellOutput(cb: (e: { notebookPath: string; cellId: string; data: string }) => void): () => void;
   onCellStatus(cb: (e: { notebookPath: string; status: CellRunStatus }) => void): () => void;
-  onSessionState(cb: (e: { notebookPath: string; state: SessionState }) => void): () => void;
+  // `end` comes with "dead" when the shell failed to start or exited on its own (not on
+  // restart, close or quit), and drives the notices in §6.3.
+  onSessionState(
+    cb: (e: { notebookPath: string; state: SessionState; end?: SessionEnd }) => void,
+  ): () => void;
 }
+
+type SessionEnd =
+  | { type: "start-failed"; output: string } // startup output, first lines shown in the notice
+  | { type: "exited"; exitCode: number };
 ```
 
 All main-process handlers must validate that any `path` argument resolves to a file directly inside the configured notebooks folder (use `path.resolve` and compare its `dirname` with the folder) and ends in `.md`. Reject anything else. Subfolders are not allowed: a symlinked subfolder could lead anywhere on disk.

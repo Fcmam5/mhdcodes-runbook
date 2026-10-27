@@ -25,6 +25,8 @@ const api: Api = {
     ipcRenderer.invoke("cell:run", notebookPath, cellId, source),
   cancelCell: (notebookPath, cellId) => ipcRenderer.invoke("cell:cancel", notebookPath, cellId),
   sendInput: (notebookPath, data) => ipcRenderer.invoke("session:input", notebookPath, data),
+  restartSession: (notebookPath) => ipcRenderer.invoke("session:restart", notebookPath),
+  closeSession: (notebookPath) => ipcRenderer.invoke("session:close", notebookPath),
   resizeSession: (notebookPath, cols, rows) =>
     ipcRenderer.invoke("session:resize", notebookPath, cols, rows),
   onCellOutput: channel("cell:output"),

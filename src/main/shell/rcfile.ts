@@ -4,7 +4,6 @@ import { dirname } from "node:path";
 // The rcfile every session starts with (SPEC §6.2, which explains its shape).
 // Keep it verbatim: each line is there for a reason verified against real bash.
 export const RCFILE = String.raw`# Load the user's normal environment
-[ -f /etc/bash.bashrc ] && source /etc/bash.bashrc
 [ -f ~/.profile ] && source ~/.profile
 [ -f ~/.bashrc ] && source ~/.bashrc
 
@@ -28,9 +27,7 @@ __rb_run() {
 __rb_after() {
   local __rb_rc=$?
   # Ignore Ctrl+C until the marker is out: one typed as the run ends would abort
-  # this function, and no marker would come. A cell's own INT trap is restored.
-  local __rb_int
-  __rb_int=$(trap -p INT)
+  # this function, and no marker would come. First thing, so the gap is tiny.
   trap '' INT
   stty -echo
   set +e
@@ -45,7 +42,8 @@ __rb_after() {
     __rb_ready=1
     printf '\033]777;rb-ready\007'
   fi
-  if [ -n "$__rb_int" ]; then eval "$__rb_int"; else trap - INT; fi
+  # Like set -e, a cell's own INT trap ends with the cell.
+  trap - INT
 }
 PROMPT_COMMAND='__rb_after'
 

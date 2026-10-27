@@ -3,6 +3,7 @@ import type {
   CellRunStatus,
   Notebook,
   NotebookSummary,
+  SessionEnd,
   SessionState,
   Settings,
 } from "../shared/types";
@@ -21,6 +22,7 @@ export interface CellStatusEvent {
 export interface SessionStateEvent {
   notebookPath: string;
   state: SessionState;
+  end?: SessionEnd; // with "dead": why the shell died on its own
 }
 
 export interface Api {
@@ -35,6 +37,10 @@ export interface Api {
   // Keystrokes for the running cell; ignored when nothing is running.
   sendInput: (notebookPath: string, data: string) => Promise<void>;
   resizeSession: (notebookPath: string, cols: number, rows: number) => Promise<void>;
+  // Kills the shell and starts a fresh one; the running cell ends interrupted.
+  restartSession: (notebookPath: string) => Promise<void>;
+  // Kills the shell; the next run starts a new one.
+  closeSession: (notebookPath: string) => Promise<void>;
 
   // Each returns an unsubscribe function.
   onCellOutput: (callback: (event: CellOutputEvent) => void) => () => void;

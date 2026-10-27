@@ -30,6 +30,11 @@ export interface CellRunStatus {
 
 export type SessionState = "starting" | "ready" | "busy" | "dead";
 
+// Why a session became dead on its own (SPEC §6.3.1, §6.3.7), for the notebook's notice.
+export type SessionEnd =
+  | { type: "start-failed"; output: string } // the first output, to help find the cause
+  | { type: "exited"; exitCode: number };
+
 // A notebook as listed in the sidebar, without its cells.
 export interface NotebookSummary {
   path: string;

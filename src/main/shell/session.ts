@@ -6,7 +6,7 @@ import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { nanoid } from "nanoid";
 import { spawn, type IPty } from "node-pty";
-import type { CellRunStatus, RunState, SessionState } from "../../shared/types";
+import type { CellRunStatus, RunState, SessionEnd, SessionState } from "../../shared/types";
 import { MarkerParser, type Marker } from "./markers";
 
 export interface ShellSessionOptions {
@@ -17,12 +17,17 @@ export interface ShellSessionOptions {
   shell?: string;
   cols?: number; // default 120
   rows?: number; // default 30
+  readyTimeoutMs?: number; // default 10 s (SPEC §6.3.1)
 }
+
+// The startup output kept for the "didn't start" notice; the notice shows its first lines.
+const STARTUP_OUTPUT_LIMIT = 8192;
 
 export interface ShellSessionEvents {
   output: [{ cellId: string; data: string }];
   status: [CellRunStatus];
-  state: [SessionState];
+  // `end` comes with "dead" when the shell failed to start or exited on its own.
+  state: [SessionState, SessionEnd?];
 }
 
 interface Run {
@@ -50,6 +55,8 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
   // (e.g. from a background job), until the next run starts.
   private outputCellId: string | null = null;
   private disposed = false;
+  private startupOutput = "";
+  private readyTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: ShellSessionOptions) {
     super();
@@ -63,6 +70,7 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
   // Spawns bash. Separate from the constructor so listeners can be attached first.
   start(): void {
     const { rcfilePath, env, cwd, shell = "bash", cols = 120, rows = 30 } = this.options;
+    const { readyTimeoutMs = 10_000 } = this.options;
     this.emit("state", "starting");
     try {
       // --noediting turns off readline, so the output holds only command output and markers.
@@ -75,9 +83,14 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
       });
     } catch (error) {
       // Dead, so the next run starts a fresh session instead of waiting on this one.
-      this.setState("dead");
+      this.die({ type: "start-failed", output: String(error) });
       throw error;
     }
+    // A ~/.bashrc that execs another shell or waits for input never lets us get ready.
+    this.readyTimer = setTimeout(() => {
+      this.die({ type: "start-failed", output: this.startupOutput });
+      this.pty?.kill();
+    }, readyTimeoutMs);
     // Like a shell's $?, a shell killed by a signal reports 128 + the signal number.
     this.pty.onExit(({ exitCode, signal }) => this.onExit(signal ? 128 + signal : exitCode));
     this.pty.onData((chunk) => this.onData(chunk));
@@ -129,8 +142,16 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     }
   }
 
+  // Kills the shell on purpose (restart, close, quit): the running run ends
+  // interrupted, waiting runs are dropped as idle, and no death is reported.
   dispose(): void {
+    if (this.disposed) return;
     this.disposed = true;
+    clearTimeout(this.readyTimer);
+    const run = this.current;
+    this.current = null;
+    if (run) this.settle(run, "interrupted");
+    for (const waiting of this.waiting.splice(0)) this.settle(waiting, "idle");
     this.pty?.kill();
   }
 
@@ -177,13 +198,25 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
   private onData(chunk: string): void {
     for (const piece of this.parser.push(chunk)) {
       if (piece.type === "marker") this.onMarker(piece.marker);
-      // Output before the ready marker (rc noise, MOTD) is discarded.
+      // Output before the ready marker (rc noise, MOTD) isn't shown, only kept in
+      // case the shell never gets ready.
+      else if (this.currentState === "starting") this.keepStartupOutput(piece.data);
       else this.forward(piece.data);
     }
   }
 
+  private keepStartupOutput(data: string): void {
+    const room = STARTUP_OUTPUT_LIMIT - this.startupOutput.length;
+    if (room > 0) this.startupOutput += data.slice(0, room);
+  }
+
   private forward(data: string): void {
-    if (data !== "" && this.currentState !== "starting" && this.outputCellId) {
+    if (
+      data !== "" &&
+      this.currentState !== "starting" &&
+      this.currentState !== "dead" &&
+      this.outputCellId
+    ) {
       this.emit("output", { cellId: this.outputCellId, data });
     }
   }
@@ -193,6 +226,8 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     switch (marker.type) {
       case "ready":
         if (this.currentState !== "starting") return;
+        clearTimeout(this.readyTimer);
+        this.startupOutput = "";
         this.setState("ready");
         this.next();
         return;
@@ -233,18 +268,32 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
   }
 
   private onExit(exitCode: number): void {
-    this.forward(this.parser.flush());
+    const rest = this.parser.flush();
     this.pty = null;
+    clearTimeout(this.readyTimer);
+    void rm(this.tempDir, { recursive: true, force: true });
+    // Killed on purpose, or already reported (the ready timeout).
+    if (this.disposed || this.currentState === "dead") return;
+    if (this.currentState === "starting") {
+      // E.g. a ~/.bashrc that ran `exit`.
+      this.keepStartupOutput(rest);
+      this.die({ type: "start-failed", output: this.startupOutput });
+      return;
+    }
+    this.forward(rest);
     const run = this.current;
     this.current = null;
-    this.setState("dead");
     // Unlike a run's own exit code, the shell's exit status means failure even if 0
     // (SPEC §6.3.7), unless the user had asked for a stop.
     if (run) this.settle(run, run.stopRequested ? "interrupted" : "failed", exitCode);
-    for (const waiting of this.waiting.splice(0)) {
-      waiting.reject(new Error("Shell session ended"));
-    }
-    void rm(this.tempDir, { recursive: true, force: true });
+    this.die({ type: "exited", exitCode });
+  }
+
+  // Marks the session dead on its own, rejecting the runs still waiting.
+  private die(end: SessionEnd): void {
+    const message = end.type === "start-failed" ? "Shell didn't start" : "Shell session ended";
+    for (const waiting of this.waiting.splice(0)) waiting.reject(new Error(message));
+    this.setState("dead", end);
   }
 
   // Reports a run's final status and resolves its promise.
@@ -261,10 +310,11 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     run.resolve(status);
   }
 
-  private setState(state: SessionState): void {
+  private setState(state: SessionState, end?: SessionEnd): void {
     if (state === this.currentState) return;
     this.currentState = state;
-    this.emit("state", state);
+    if (end) this.emit("state", state, end);
+    else this.emit("state", state);
   }
 }
 

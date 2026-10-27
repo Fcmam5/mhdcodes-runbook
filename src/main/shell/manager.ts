@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CellRunStatus, SessionState } from "../../shared/types";
+import type { CellRunStatus, SessionEnd, SessionState } from "../../shared/types";
 import { buildShellEnv } from "./env";
 import { writeRcfile } from "./rcfile";
 import { ShellSession } from "./session";
@@ -15,12 +15,14 @@ export interface SessionManagerOptions {
   env?: Record<string, string>; // default: buildShellEnv(process.env)
   cwd?: string; // default: the home folder
   shell?: string;
+  readyTimeoutMs?: number; // default 10 s
 }
 
 export interface SessionManagerEvents {
   output: [{ notebookPath: string; cellId: string; data: string }];
   status: [{ notebookPath: string; status: CellRunStatus }];
-  state: [{ notebookPath: string; state: SessionState }];
+  // `end` comes with "dead" when the shell failed to start or exited on its own.
+  state: [{ notebookPath: string; state: SessionState; end?: SessionEnd }];
 }
 
 export class SessionManager extends EventEmitter<SessionManagerEvents> {
@@ -80,6 +82,23 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     this.sessions.get(notebookPath)?.resize(cols, rows);
   }
 
+  // Kills the notebook's shell and starts a fresh one (SPEC §6.3.8). The running cell
+  // ends interrupted and queued runs are dropped.
+  async restart(notebookPath: string): Promise<void> {
+    if (this.disposed) throw new Error("Shell sessions are shut down");
+    const tempRoot = await this.prepare();
+    if (this.disposed) throw new Error("Shell sessions are shut down");
+    this.close(notebookPath);
+    this.createSession(notebookPath, tempRoot);
+  }
+
+  // Kills the notebook's shell, e.g. when the notebook is deleted. The next run
+  // starts a new session.
+  close(notebookPath: string): void {
+    this.sessions.get(notebookPath)?.dispose();
+    this.sessions.delete(notebookPath);
+  }
+
   // Kills every shell. Later runs start new sessions.
   closeAll(): void {
     for (const session of this.sessions.values()) session.dispose();
@@ -124,10 +143,15 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
       cwd: this.options.cwd ?? homedir(),
       ...this.sizes.get(notebookPath),
       ...(this.options.shell === undefined ? {} : { shell: this.options.shell }),
+      ...(this.options.readyTimeoutMs === undefined
+        ? {}
+        : { readyTimeoutMs: this.options.readyTimeoutMs }),
     });
     session.on("output", (event) => this.emit("output", { notebookPath, ...event }));
     session.on("status", (status) => this.emit("status", { notebookPath, status }));
-    session.on("state", (state) => this.emit("state", { notebookPath, state }));
+    session.on("state", (state, end) =>
+      this.emit("state", { notebookPath, state, ...(end === undefined ? {} : { end }) }),
+    );
     this.sessions.set(notebookPath, session);
     session.start();
     return session;

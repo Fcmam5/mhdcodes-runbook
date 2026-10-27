@@ -31,6 +31,12 @@ export function registerIpc(settings: Settings, sessions: SessionManager): void 
     if (typeof data !== "string") throw new Error("Invalid input");
     sessions.sendInput(notebookPath, data);
   });
+  ipcMain.handle("session:restart", (_event, path: unknown) =>
+    sessions.restart(resolveNotebookPath(settings.notebooksDir, path)),
+  );
+  ipcMain.handle("session:close", (_event, path: unknown) => {
+    sessions.close(resolveNotebookPath(settings.notebooksDir, path));
+  });
   ipcMain.handle("session:resize", (_event, path: unknown, cols: unknown, rows: unknown) => {
     const notebookPath = resolveNotebookPath(settings.notebooksDir, path);
     if (!isTerminalSize(cols) || !isTerminalSize(rows)) throw new Error("Invalid size");

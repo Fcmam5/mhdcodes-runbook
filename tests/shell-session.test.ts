@@ -1,13 +1,13 @@
 // Runs real bash through node-pty. Each test gets its own folder and manager, so they
 // run concurrently: most of a test's time is bash waiting, not work.
-import { access, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it as base, vi } from "vitest";
 import { buildShellEnv } from "../src/main/shell/env";
 import { SessionManager } from "../src/main/shell/manager";
 import { RCFILE } from "../src/main/shell/rcfile";
-import type { CellRunStatus, SessionState } from "../src/shared/types";
+import type { CellRunStatus, SessionEnd, SessionState } from "../src/shared/types";
 
 const NOTEBOOK = "/notebooks/test.md";
 
@@ -15,6 +15,7 @@ interface Events {
   output: Map<string, string>;
   statuses: CellRunStatus[];
   states: SessionState[];
+  ends: SessionEnd[];
   outputOf(cellId: string): string;
 }
 
@@ -40,13 +41,17 @@ const it = base.extend<{ root: string; manager: SessionManager; events: Events }
     const output = new Map<string, string>();
     const statuses: CellRunStatus[] = [];
     const states: SessionState[] = [];
+    const ends: SessionEnd[] = [];
     manager.on("output", ({ cellId, data }) =>
       output.set(cellId, (output.get(cellId) ?? "") + data),
     );
     manager.on("status", ({ status }) => statuses.push(status));
-    manager.on("state", ({ state }) => states.push(state));
+    manager.on("state", ({ state, end }) => {
+      states.push(state);
+      if (end) ends.push(end);
+    });
     const outputOf = (cellId: string) => (output.get(cellId) ?? "").replaceAll("\r\n", "\n");
-    await use({ output, statuses, states, outputOf });
+    await use({ output, statuses, states, ends, outputOf });
   },
 });
 
@@ -224,13 +229,13 @@ describe.concurrent("SessionManager with real bash", () => {
     expect(outputOf("c1")).toBe("armed\n^C\nend\n");
   });
 
-  it("keeps a cell's own Ctrl+C trap for later cells", async ({
+  it("ends a cell's own Ctrl+C trap with the cell, like set -e", async ({
     manager,
     events: { outputOf },
   }) => {
     await manager.run(NOTEBOOK, "c1", "trap 'echo caught' INT");
     await manager.run(NOTEBOOK, "c2", "trap -p INT");
-    expect(outputOf("c2")).toBe("trap -- 'echo caught' SIGINT\n");
+    expect(outputOf("c2")).toBe("");
   });
 
   it("counts any exit after a stop as interrupted", async ({ manager, events: { outputOf } }) => {
@@ -374,13 +379,14 @@ describe.concurrent("SessionManager with real bash", () => {
 
   it("marks the session dead when the shell exits, and starts a new one next run", async ({
     manager,
-    events: { states, outputOf },
+    events: { states, ends, outputOf },
   }) => {
     expect(await manager.run(NOTEBOOK, "c1", "exit 3")).toMatchObject({
       state: "failed",
       exitCode: 3,
     });
     expect(states.at(-1)).toBe("dead");
+    expect(ends).toEqual([{ type: "exited", exitCode: 3 }]);
     expect(await manager.run(NOTEBOOK, "c2", "echo again")).toMatchObject({ state: "success" });
     expect(outputOf("c2")).toBe("again\n");
   });
@@ -396,6 +402,101 @@ describe.concurrent("SessionManager with real bash", () => {
       state: "failed",
       exitCode: 137,
     });
+  });
+
+  it("gives up on a shell that doesn't get ready in time, keeping its output", async ({ root }) => {
+    // A ~/.bashrc that waits forever, like one that asks for input.
+    const home = join(root, "home");
+    await mkdir(home, { recursive: true });
+    await writeFile(join(home, ".bashrc"), "echo hello from bashrc\nsleep 60\n");
+    const manager = new SessionManager({
+      rcfilePath: join(root, "userData", "rcfile.bash"),
+      tempRoot: join(root, "tmp"),
+      env: buildShellEnv({ ...process.env, HOME: home }),
+      cwd: root,
+      readyTimeoutMs: 300,
+    });
+    const ends: SessionEnd[] = [];
+    manager.on("state", ({ end }) => {
+      if (end) ends.push(end);
+    });
+    try {
+      await expect(manager.run(NOTEBOOK, "c1", "true")).rejects.toThrow("Shell didn't start");
+      expect(ends).toEqual([
+        { type: "start-failed", output: expect.stringContaining("hello from bashrc") },
+      ]);
+      // Once the ~/.bashrc is fixed, the next run starts a working session.
+      await writeFile(join(home, ".bashrc"), "");
+      expect(await manager.run(NOTEBOOK, "c2", "true")).toMatchObject({ state: "success" });
+    } finally {
+      await manager.dispose();
+    }
+  });
+
+  it("reports a ~/.bashrc that exits as a shell that didn't start", async ({ root }) => {
+    const home = join(root, "home");
+    await mkdir(home, { recursive: true });
+    await writeFile(join(home, ".bashrc"), "echo bye\nexit 7\n");
+    const manager = new SessionManager({
+      rcfilePath: join(root, "userData", "rcfile.bash"),
+      tempRoot: join(root, "tmp"),
+      env: buildShellEnv({ ...process.env, HOME: home }),
+      cwd: root,
+    });
+    const ends: SessionEnd[] = [];
+    manager.on("state", ({ end }) => {
+      if (end) ends.push(end);
+    });
+    try {
+      await expect(manager.run(NOTEBOOK, "c1", "true")).rejects.toThrow("Shell didn't start");
+      expect(ends).toEqual([{ type: "start-failed", output: expect.stringContaining("bye") }]);
+    } finally {
+      await manager.dispose();
+    }
+  });
+
+  it("restarts a session: the running cell is interrupted, the queue dropped", async ({
+    root,
+    manager,
+    events: { states, ends, outputOf },
+  }) => {
+    await manager.run(NOTEBOOK, "c1", "cd /tmp");
+    const running = manager.run(NOTEBOOK, "c2", "sleep 10");
+    const queued = manager.run(NOTEBOOK, "c3", "echo never");
+    await waitForRunning(manager, "c2");
+    await manager.restart(NOTEBOOK);
+    expect(await running).toMatchObject({ cellId: "c2", state: "interrupted" });
+    expect(await queued).toMatchObject({ cellId: "c3", state: "idle" });
+    expect(outputOf("c3")).toBe("");
+    // A fresh shell: the cd from before is gone.
+    await manager.run(NOTEBOOK, "c4", "pwd");
+    expect(outputOf("c4")).toBe(`${root}\n`);
+    expect(states).not.toContain("dead");
+    expect(ends).toEqual([]);
+    expect(states.slice(-4)).toEqual(["starting", "ready", "busy", "ready"]);
+  });
+
+  it("starts a session on restart even if there was none", async ({
+    manager,
+    events: { states },
+  }) => {
+    await manager.restart(NOTEBOOK);
+    await vi.waitFor(() => expect(states).toEqual(["starting", "ready"]));
+  });
+
+  it("closes a session: the next run starts a fresh one", async ({
+    root,
+    manager,
+    events: { ends, outputOf },
+  }) => {
+    await manager.run(NOTEBOOK, "c1", "cd /tmp");
+    const running = manager.run(NOTEBOOK, "c2", "sleep 10");
+    await waitForRunning(manager, "c2");
+    manager.close(NOTEBOOK);
+    expect(await running).toMatchObject({ state: "interrupted" });
+    await manager.run(NOTEBOOK, "c3", "pwd");
+    expect(outputOf("c3")).toBe(`${root}\n`);
+    expect(ends).toEqual([]);
   });
 
   it("fails runs, without hanging, when the shell can't start", async ({ root }) => {
