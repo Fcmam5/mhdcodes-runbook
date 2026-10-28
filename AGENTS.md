@@ -2,19 +2,19 @@
 
 ## Issue tracker: Local Markdown
 
-Issues and specs live as local markdown files under `.scratch/<feature-slug>/`.
+Issues and specs live as local markdown files under `.github/issues/`.
 
 ### Conventions
 
-- One feature per directory: `.scratch/<feature-slug>/`
-- The spec is `.scratch/<feature-slug>/spec.md`
-- Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
+- One feature per directory: `.github/issues/`
+- The spec is `SPEC.md` or `.github/issues/spec.md`
+- Implementation issues are one file per ticket at `.github/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
 - State is recorded as a `Status:` line near the top of each issue file
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
 
 ### When a skill says "publish to the issue tracker"
 
-Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+Create a new file under `.github/issues/` (creating the directory if needed).
 
 ### When a skill says "fetch the relevant ticket"
 
