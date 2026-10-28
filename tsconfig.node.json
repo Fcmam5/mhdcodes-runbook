@@ -6,13 +6,5 @@
     "types": ["node"],
     "tsBuildInfoFile": "./node_modules/.cache/tsconfig.node.tsbuildinfo"
   },
-  "include": [
-    "electron.vite.config.ts",
-    "vitest.config.ts",
-    "src/main/**/*",
-    "src/preload/**/*",
-    "src/shared/**/*",
-    "src/renderer/src/state/**/*",
-    "tests/**/*"
-  ]
+  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*"]
 }

@@ -70,22 +70,41 @@ builds the installers without publishing anything.
 
 ```sh
 src/
-├── main/index.ts          # Main process: window creation, IPC handlers, app lifecycle
+├── main/                    # Main process (Node)
+│   ├── index.ts             # App lifecycle: single-instance lock, startup, quit
+│   ├── window.ts            # The window: options, close handling, links
+│   ├── window-state.ts      # Remembered window size and position
+│   ├── ipc.ts               # IPC handlers behind `window.api`
+│   ├── notebooks.ts         # Notebook files in the notebooks folder
+│   ├── search.ts            # Full-text search over notebooks
+│   ├── settings.ts          # settings.json
+│   ├── welcome.ts           # The sample Welcome notebook
+│   ├── fs.ts                # File-system helpers
+│   └── shell/               # One bash per notebook over node-pty (no Electron imports)
 ├── preload/
-│   ├── index.ts           # Exposes a typed `window.api` via contextBridge
-│   └── api.ts             # Shared `Api` type (used by preload and renderer)
+│   ├── index.ts             # Exposes a typed `window.api` via contextBridge
+│   └── api.ts               # The `Api` type (used by preload and renderer)
+├── shared/                  # Used by both processes: types, notebook format, links
 └── renderer/
-    ├── index.html         # Entry HTML with a strict Content-Security-Policy
+    ├── index.html           # Entry HTML with a strict Content-Security-Policy
     └── src/
-        ├── main.ts        # Mounts the Svelte app
+        ├── main.ts          # Mounts the Svelte app
         ├── App.svelte
-        ├── app.css        # Tailwind entry (`@import "tailwindcss"`)
-        └── env.d.ts       # Global types (`window.api`)
-electron.vite.config.ts    # Build config for main / preload / renderer
-electron-builder.yml       # Packaging config (targets, fuses)
+        ├── app.css          # Tailwind entry and theme (fonts, dark only)
+        ├── env.d.ts         # Global types (`window.api`)
+        ├── components/      # Svelte components
+        ├── lib/             # Glue to the DOM: CodeMirror, xterm, markdown, the app's stores
+        └── state/           # Plain state logic, no DOM: tested in Node
+tests/                       # Vitest, run in Node
+electron.vite.config.ts      # Build config for main / preload / renderer
+electron-builder.yml         # Packaging config (targets, fuses)
 ```
 
-TypeScript is split into `tsconfig.node.json` (main and preload, with Node types) and `tsconfig.web.json` (renderer, DOM only). Node globals cannot leak into the UI code. Both extend `tsconfig.base.json`, which enables `strict` plus extra checks: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and others.
+TypeScript is split into three projects, all extending `tsconfig.base.json`, which enables `strict` plus extra checks: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and others.
+
+- `tsconfig.node.json`: main and preload, with Node types.
+- `tsconfig.web.json`: the renderer, DOM only, so Node globals cannot leak into the UI code.
+- `tsconfig.test.json`: the tests and the code they import, with Node types, since Vitest runs in Node. This includes `renderer/src/state/`, which must stay free of the DOM.
 
 ## Security
 

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { nanoid } from "nanoid";
 import { spawn, type IPty } from "node-pty";
 import type { CellRunStatus, RunState, SessionEnd, SessionState } from "../../shared/types";
+import { isCode } from "../fs";
 import { MarkerParser, type Marker } from "./markers";
 
 export interface ShellSessionOptions {
@@ -168,7 +169,7 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     try {
       // Not recursive: once the temp root is removed on quit, nothing may recreate it.
       await mkdir(this.tempDir, { mode: 0o700 }).catch((error: unknown) => {
-        if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+        if (!isCode(error, "EEXIST")) throw error;
       });
       await writeFile(run.scriptPath, run.source, { mode: 0o600 });
     } catch (error) {

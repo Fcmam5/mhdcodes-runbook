@@ -25,7 +25,13 @@ export function createWindow(saved: WindowState | null, windowStateFile: string)
     },
   });
 
+  // Shown once painted, or when the page fails to load: a window that stays hidden
+  // would leave the app running with nothing on screen, holding the single-instance
+  // lock, so it couldn't be opened again.
   win.once("ready-to-show", () => win.show());
+  win.webContents.on("did-fail-load", (_event, _code, _description, _url, isMainFrame) => {
+    if (isMainFrame) win.show();
+  });
 
   // Remember the window's size and position for the next launch (SPEC §9.4). The
   // normal bounds, so a maximized window comes back at its unmaximized size. Being
@@ -69,11 +75,11 @@ export function createWindow(saved: WindowState | null, windowStateFile: string)
   });
 
   const devUrl = process.env["ELECTRON_RENDERER_URL"];
-  if (!app.isPackaged && devUrl) {
-    void win.loadURL(devUrl);
-  } else {
-    void win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
-  }
+  const loaded =
+    !app.isPackaged && devUrl
+      ? win.loadURL(devUrl)
+      : win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
+  loaded.catch((error: unknown) => console.error("Could not load the app's page:", error));
 }
 
 // On Wayland the position can't be read or set: the compositor places windows, and

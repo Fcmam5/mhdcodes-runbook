@@ -17,6 +17,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { parse, serialize } from "../shared/notebook";
 import type { Cell, Notebook, NotebookSummary } from "../shared/types";
+import { isCode } from "./fs";
 import { WELCOME_FILE, WELCOME_NOTEBOOK } from "./welcome";
 
 // Creates the folder if it is missing, and seeds the Welcome notebook if it is empty.
@@ -194,10 +195,6 @@ function toTitle(value: unknown): string {
   const title = typeof value === "string" ? value.trim() : "";
   if (title === "") throw new Error("A notebook needs a title");
   return title;
-}
-
-function isCode(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
 }
 
 // Writes of the same file run one after another, so two never share its temp file.

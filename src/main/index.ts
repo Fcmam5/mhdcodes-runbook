@@ -50,28 +50,36 @@ if (!app.requestSingleInstanceLock()) {
       .finally(() => app.quit());
   });
 
-  void app.whenReady().then(async () => {
-    // Any failure here must still end in a window: a windowless app never quits and
-    // keeps the single-instance lock, so the app could not be started again.
-    // The window state is read meanwhile; nothing before the window needs it.
-    const windowStateFile = join(app.getPath("userData"), "window-state.json");
-    const windowState = loadWindowState(windowStateFile).catch((error: unknown) => {
-      console.error("Could not load the window state:", error);
-      return null;
-    });
-    const settings = await loadSettings(join(app.getPath("userData"), "settings.json")).catch(
-      (error: unknown) => {
-        console.error("Could not load settings, using defaults:", error);
-        return defaultSettings();
-      },
-    );
-    await ensureNotebooksDir(settings.notebooksDir).catch((error: unknown) => {
-      console.error("Could not prepare the notebooks folder:", error);
-    });
-    registerIpc(settings, sessions);
+  void app
+    .whenReady()
+    .then(async () => {
+      // Any failure here must still end in a window: a windowless app never quits and
+      // keeps the single-instance lock, so the app could not be started again.
+      // The window state is read meanwhile; nothing before the window needs it.
+      const windowStateFile = join(app.getPath("userData"), "window-state.json");
+      const windowState = loadWindowState(windowStateFile).catch((error: unknown) => {
+        console.error("Could not load the window state:", error);
+        return null;
+      });
+      const settings = await loadSettings(join(app.getPath("userData"), "settings.json")).catch(
+        (error: unknown) => {
+          console.error("Could not load settings, using defaults:", error);
+          return defaultSettings();
+        },
+      );
+      await ensureNotebooksDir(settings.notebooksDir).catch((error: unknown) => {
+        console.error("Could not prepare the notebooks folder:", error);
+      });
+      registerIpc(settings, sessions);
 
-    createWindow(await windowState, windowStateFile);
-  });
+      createWindow(await windowState, windowStateFile);
+    })
+    // Startup failed in a way the steps above don't handle: quit rather than run on
+    // with no window, which would keep the lock.
+    .catch((error: unknown) => {
+      console.error("Could not start Runbook:", error);
+      app.quit();
+    });
 
   app.on("window-all-closed", () => app.quit());
 }

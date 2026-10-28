@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.test.tsbuildinfo"
+  },
+  "include": [
+    "vitest.config.ts",
+    "tests/**/*",
+    "src/main/**/*",
+    "src/preload/api.ts",
+    "src/shared/**/*",
+    "src/renderer/src/state/**/*"
+  ]
+}
