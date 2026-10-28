@@ -103,16 +103,16 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="relative flex flex-col gap-1.5" data-cell {onkeydown}>
   <!-- No overflow-hidden: it would clip the ⋮ menu. -->
-  <div class="rounded-lg border border-zinc-200 dark:border-zinc-800">
+  <div class="rounded-lg border border-zinc-800">
     <div
-      class="flex items-center justify-between rounded-t-lg border-b border-zinc-200 bg-zinc-50 py-1 pr-1 pl-3 dark:border-zinc-800 dark:bg-zinc-900"
+      class="flex items-center justify-between rounded-t-lg border-b py-1 pr-1 pl-3 border-zinc-800 bg-zinc-900"
     >
       <span class="font-mono text-xs text-zinc-500">{cell.info ?? "bash"}</span>
       <span class="flex items-center gap-0.5">
       <button
         bind:this={runButton}
         type="button"
-        class="rounded px-2 py-0.5 text-sm text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        class="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-800"
         title={active ? "Stop" : "Run"}
         aria-label={active ? "Stop" : "Run"}
         onclick={() => (active ? stopCell(notebookPath, cell.id) : start())}
@@ -134,8 +134,8 @@
     <p
       class={[
         "flex items-center gap-1.5 px-1 font-mono text-xs",
-        line.tone === "success" && "text-green-700 dark:text-green-400",
-        line.tone === "failure" && "text-red-700 dark:text-red-400",
+        line.tone === "success" && "text-green-400",
+        line.tone === "failure" && "text-red-400",
         line.tone === "neutral" && "text-zinc-500",
       ]}
     >
@@ -151,7 +151,7 @@
     </p>
   {/if}
   {#if run.error}
-    <p class="px-1 text-xs text-red-700 dark:text-red-400">{run.error}</p>
+    <p class="px-1 text-xs text-red-400">{run.error}</p>
   {/if}
 
   <!-- The output pane goes here; `contents` keeps the slot itself out of the layout. -->

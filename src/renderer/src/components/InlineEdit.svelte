@@ -37,7 +37,7 @@
 {#if editing}
   <input
     class={[
-      "w-full rounded-md border border-zinc-300 bg-white px-2 py-0.5 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900",
+      "w-full rounded-md border px-2 py-0.5 outline-none focus:border-blue-500 border-zinc-700 bg-zinc-900",
       inputClass,
     ]}
     aria-label={label}
@@ -53,7 +53,7 @@
 {:else}
   <button
     type="button"
-    class="-mx-2 block w-[calc(100%+1rem)] cursor-text rounded-md px-2 py-0.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-900"
+    class="-mx-2 block w-[calc(100%+1rem)] cursor-text rounded-md px-2 py-0.5 text-left hover:bg-zinc-900"
     title={`Edit ${label.toLowerCase()}`}
     onclick={start}
   >

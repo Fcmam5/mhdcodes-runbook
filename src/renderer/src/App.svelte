@@ -162,7 +162,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="flex h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+<div class="flex h-screen bg-zinc-950 text-zinc-100">
   <Sidebar
     bind:this={sidebar}
     notebooks={listed}
@@ -176,12 +176,12 @@
 
   <main class="flex-1 overflow-y-auto">
     {#if error}
-      <p class="m-6 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+      <p class="m-6 rounded-md p-3 text-sm bg-red-950 text-red-300">
         {error}
       </p>
     {/if}
     {#if shown && $saveErrors[shown]}
-      <p class="m-6 mb-0 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+      <p class="m-6 mb-0 rounded-md p-3 text-sm bg-red-950 text-red-300">
         Couldn't save this notebook: {$saveErrors[shown]}. Your changes are kept; the next
         edit tries again.
       </p>

@@ -7,7 +7,7 @@
   // SPEC §9.3: grey = no session, green = ready, amber = busy, red = dead. A session
   // that is still starting can't run anything yet, so it shows as busy.
   const LOOKS: Record<SessionState | "none", { colour: string; label: string }> = {
-    none: { colour: "bg-zinc-300 dark:bg-zinc-600", label: "No session" },
+    none: { colour: "bg-zinc-600", label: "No session" },
     starting: { colour: "bg-amber-500", label: "Session starting" },
     ready: { colour: "bg-green-500", label: "Session ready" },
     busy: { colour: "bg-amber-500", label: "Session busy" },

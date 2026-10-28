@@ -140,12 +140,12 @@
 />
 
 <nav
-  class="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r border-zinc-200 p-3 dark:border-zinc-800"
+  class="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r p-3 border-zinc-800"
   onscroll={() => (menu = null)}
 >
   <input
     type="search"
-    class="mb-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-blue-500 dark:border-zinc-800 dark:bg-zinc-900"
+    class="mb-2 rounded-md border px-3 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-blue-500 border-zinc-800 bg-zinc-900"
     placeholder="Search…"
     aria-label="Search notebooks"
     bind:this={searchInput}
@@ -163,8 +163,8 @@
         class={[
           "flex flex-col rounded-md px-3 py-1.5 text-left text-sm",
           result.path === selected
-            ? "bg-zinc-200 dark:bg-zinc-800"
-            : "hover:bg-zinc-100 dark:hover:bg-zinc-900",
+            ? "bg-zinc-800"
+            : "hover:bg-zinc-900",
         ]}
         title={result.title}
         onclick={() => onselect(result.path)}
@@ -181,7 +181,7 @@
     {/each}
   {:else if creating}
     <input
-      class="mb-1 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
+      class="mb-1 rounded-md border px-3 py-1.5 text-sm outline-none focus:border-blue-500 border-zinc-700 bg-zinc-900"
       aria-label="New notebook title"
       placeholder="Title of the new notebook"
       bind:value={newTitle}
@@ -200,7 +200,7 @@
   {:else}
     <button
       type="button"
-      class="mb-1 rounded-md px-3 py-1.5 text-left text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
+      class="mb-1 rounded-md px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-900"
       onclick={() => (creating = true)}
     >
       + New
@@ -211,7 +211,7 @@
   {#each notebooks as notebook (notebook.path)}
     {#if renaming === notebook.path}
       <input
-        class="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
+        class="rounded-md border px-3 py-1.5 text-sm outline-none focus:border-blue-500 border-zinc-700 bg-zinc-900"
         aria-label="New title"
         bind:value={renameTitle}
         {@attach focusAndSelect}
@@ -228,8 +228,8 @@
           class={[
             "flex w-full items-center gap-2 rounded-md py-1.5 pr-8 pl-3 text-left text-sm",
             notebook.path === selected
-              ? "bg-zinc-200 font-medium dark:bg-zinc-800"
-              : "hover:bg-zinc-100 dark:hover:bg-zinc-900",
+              ? "font-medium bg-zinc-800"
+              : "hover:bg-zinc-900",
           ]}
           aria-current={notebook.path === selected ? "page" : undefined}
           title={notebook.title}
@@ -247,7 +247,7 @@
         </button>
         <button
           type="button"
-          class="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-sm text-zinc-500 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          class="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-sm text-zinc-500 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-zinc-700"
           title="More"
           aria-label={`More for ${notebook.title}`}
           aria-haspopup="menu"
@@ -268,7 +268,7 @@
   <div
     bind:this={menuElement}
     role="menu"
-    class="fixed z-20 min-w-40 rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+    class="fixed z-20 min-w-40 rounded-md border py-1 text-sm shadow-lg border-zinc-700 bg-zinc-900"
     style:left={`${menu.x}px`}
     style:top={`${menu.y}px`}
   >
@@ -277,8 +277,8 @@
         type="button"
         role="menuitem"
         class={[
-          "block w-full px-3 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800",
-          label === "Delete…" && "text-red-700 dark:text-red-400",
+          "block w-full px-3 py-1.5 text-left hover:bg-zinc-800",
+          label === "Delete…" && "text-red-400",
         ]}
         onclick={() => choose(action)}
       >

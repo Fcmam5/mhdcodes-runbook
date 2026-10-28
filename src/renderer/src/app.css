@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* SPEC §9.4: the system UI font for prose, a monospace stack for code and output.
+   Keep --font-mono in step with MONOSPACE in lib/fonts.ts. */
+@theme {
+  --font-sans: system-ui, sans-serif;
+  --font-mono: "Ubuntu Mono", "DejaVu Sans Mono", monospace;
+}
+
+/* The app is dark only (DECISIONS.md), scrollbars and form controls included. */
+:root {
+  color-scheme: dark;
+}
+
 /* Rendered markdown cells. Tailwind's preflight resets these elements, so restyle them. */
 .markdown {
   line-height: 1.65;
@@ -22,7 +34,7 @@
     font-weight: 600;
   }
   & a {
-    color: var(--color-blue-600);
+    color: var(--color-blue-400);
     text-decoration: underline;
   }
   & ul {
@@ -34,55 +46,35 @@
     padding-left: 1.5em;
   }
   & blockquote {
-    border-left: 3px solid var(--color-zinc-300);
+    border-left: 3px solid var(--color-zinc-700);
     padding-left: 1em;
     color: var(--color-zinc-500);
   }
   & code,
   & pre {
-    font-family: "Ubuntu Mono", "DejaVu Sans Mono", monospace;
+    font-family: var(--font-mono);
   }
   & :not(pre) > code {
     border-radius: 4px;
-    background: var(--color-zinc-100);
+    background: var(--color-zinc-900);
     padding: 0.1em 0.3em;
   }
   & pre {
     overflow-x: auto;
     border-radius: 8px;
-    background: var(--color-zinc-100);
+    background: var(--color-zinc-900);
     padding: 0.75em 1em;
   }
   & hr {
-    border-color: var(--color-zinc-200);
+    border-color: var(--color-zinc-800);
   }
   & table {
     border-collapse: collapse;
   }
   & th,
   & td {
-    border: 1px solid var(--color-zinc-200);
+    border: 1px solid var(--color-zinc-800);
     padding: 0.25em 0.75em;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .markdown {
-    & a {
-      color: var(--color-blue-400);
-    }
-    & blockquote {
-      border-color: var(--color-zinc-700);
-    }
-    & :not(pre) > code,
-    & pre {
-      background: var(--color-zinc-900);
-    }
-    & hr,
-    & th,
-    & td {
-      border-color: var(--color-zinc-800);
-    }
   }
 }
 

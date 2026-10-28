@@ -73,7 +73,7 @@
 </script>
 
 <article class="mx-auto flex max-w-3xl flex-col gap-4 px-8 py-6" bind:this={article}>
-  <header class="border-b border-zinc-200 pb-4 dark:border-zinc-800">
+  <header class="border-b pb-4 border-zinc-800">
     <div class="flex items-center justify-between gap-4">
       <div class="min-w-0 flex-1">
         <InlineEdit
@@ -90,7 +90,7 @@
       <span class="flex shrink-0 items-center gap-1">
         <button
           type="button"
-          class="rounded px-1.5 py-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          class="rounded px-1.5 py-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
           title="Restart session"
           aria-label="Restart session"
           onclick={() => void restart()}

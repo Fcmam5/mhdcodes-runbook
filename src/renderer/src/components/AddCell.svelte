@@ -16,7 +16,7 @@
   {#each [["markdown", "+ Markdown"], ["shell", "+ Shell"]] as const as [type, label] (type)}
     <button
       type="button"
-      class="rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:text-zinc-100"
+      class="rounded-md border px-2.5 py-1 border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-100"
       onclick={() => onadd(type)}
     >
       {label}

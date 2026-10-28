@@ -64,7 +64,7 @@
   </div>
   {#if editing}
     <div
-      class="rounded-lg border border-zinc-300 dark:border-zinc-700"
+      class="rounded-lg border border-zinc-700"
       {@attach editor()}
     ></div>
   {:else}

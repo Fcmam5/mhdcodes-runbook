@@ -1,9 +1,10 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { defaultHighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { EditorState, Prec, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
 import type { Attachment } from "svelte/attachments";
 import { MONOSPACE } from "./fonts";
 
@@ -16,23 +17,68 @@ export interface EditorOptions {
   shortcuts?: Record<string, () => void>;
 }
 
-const theme = EditorView.theme({
-  "&": { fontSize: "14px", backgroundColor: "transparent" },
-  "&.cm-focused": { outline: "none" },
-  ".cm-scroller": { fontFamily: MONOSPACE, lineHeight: "1.5" },
-  ".cm-content": { padding: "8px 0" },
-  ".cm-line": { padding: "0 12px" },
-});
+// The app is dark only; `dark: true` switches CodeMirror's base theme to its dark
+// variant. Caret and selection are set to match the app's colours.
+const theme = EditorView.theme(
+  {
+    "&": { fontSize: "14px", backgroundColor: "transparent" },
+    "&.cm-focused": { outline: "none" },
+    ".cm-scroller": { fontFamily: MONOSPACE, lineHeight: "1.5" },
+    ".cm-content": { padding: "8px 0", caretColor: "#f4f4f5" },
+    ".cm-line": { padding: "0 12px" },
+    ".cm-cursor": { borderLeftColor: "#f4f4f5" },
+    // zinc-700, and a blue tint while focused.
+    ".cm-selectionBackground": { backgroundColor: "#3f3f46 !important" },
+    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
+      backgroundColor: "#1e3a8a !important",
+    },
+  },
+  { dark: true },
+);
 
-const editing = [history(), keymap.of([...defaultKeymap, ...historyKeymap]), theme];
+// CodeMirror's default highlight colours are for light backgrounds; these are their
+// counterparts for dark ones.
+const highlightStyle = HighlightStyle.define([
+  { tag: tags.meta, color: "#a1a1aa" },
+  { tag: tags.link, textDecoration: "underline" },
+  { tag: tags.heading, textDecoration: "underline", fontWeight: "bold" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.strong, fontWeight: "bold" },
+  { tag: tags.strikethrough, textDecoration: "line-through" },
+  { tag: tags.keyword, color: "#c792ea" },
+  {
+    tag: [tags.atom, tags.bool, tags.url, tags.contentSeparator, tags.labelName],
+    color: "#82aaff",
+  },
+  { tag: [tags.literal, tags.inserted], color: "#7fd1a4" },
+  { tag: [tags.string, tags.deleted], color: "#f78c6c" },
+  {
+    tag: [tags.regexp, tags.escape, tags.special(tags.string)],
+    color: "#ffcb6b",
+  },
+  { tag: tags.definition(tags.variableName), color: "#82aaff" },
+  { tag: tags.local(tags.variableName), color: "#b4a7f5" },
+  { tag: [tags.typeName, tags.namespace], color: "#7fd1a4" },
+  { tag: tags.className, color: "#89ddff" },
+  {
+    tag: [tags.special(tags.variableName), tags.macroName],
+    color: "#89ddff",
+  },
+  { tag: tags.definition(tags.propertyName), color: "#82aaff" },
+  { tag: tags.comment, color: "#a1a1aa" },
+  { tag: tags.invalid, color: "#ff5370" },
+]);
 
-const shellExtensions = [StreamLanguage.define(shell), syntaxHighlighting(defaultHighlightStyle)];
-
-const markdownExtensions = [
-  markdown(),
-  syntaxHighlighting(defaultHighlightStyle),
-  EditorView.lineWrapping,
+const editing = [
+  history(),
+  keymap.of([...defaultKeymap, ...historyKeymap]),
+  theme,
+  syntaxHighlighting(highlightStyle),
 ];
+
+const shellExtensions = [StreamLanguage.define(shell)];
+
+const markdownExtensions = [markdown(), EditorView.lineWrapping];
 
 // A shell cell's editor (SPEC §9.3): always shown, bash highlighting.
 export function shellEditor(options: EditorOptions): Attachment<HTMLElement> {

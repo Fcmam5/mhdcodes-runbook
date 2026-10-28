@@ -13,14 +13,7 @@ import { MONOSPACE } from "./fonts";
 
 const MAX_HEIGHT_PX = 400;
 
-const LIGHT: ITheme = {
-  background: "#fafafa", // zinc-50
-  foreground: "#18181b", // zinc-900
-  cursor: "#18181b",
-  selectionBackground: "#d4d4d8", // zinc-300
-};
-
-const DARK: ITheme = {
+const THEME: ITheme = {
   background: "#18181b", // zinc-900
   foreground: "#f4f4f5", // zinc-100
   cursor: "#f4f4f5",
@@ -39,7 +32,7 @@ export interface OutputPaneOptions {
 
 const ROOT_CLASSES = [
   "output-collapsed",
-  "overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900",
+  "overflow-hidden rounded-lg border p-2 border-zinc-800 bg-zinc-900",
   // A focus ring while the cell runs, when typing goes to the shell.
   "data-[running=true]:focus-within:border-blue-500 data-[running=true]:focus-within:ring-2 data-[running=true]:focus-within:ring-blue-500/30",
 ].join(" ");
@@ -62,13 +55,12 @@ export class OutputPane {
   private heldNewline = "";
 
   constructor(private readonly options: OutputPaneOptions) {
-    const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     this.terminal = new Terminal({
       rows: 1,
       scrollback: 5000,
       fontFamily: MONOSPACE,
       fontSize: 14,
-      theme: dark ? DARK : LIGHT,
+      theme: THEME,
       cursorBlink: true,
       cursorInactiveStyle: "none",
     });

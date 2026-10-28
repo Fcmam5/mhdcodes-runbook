@@ -1,15 +1,27 @@
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from "electron";
 import { externalUrl } from "../shared/links";
 import { registerIpc } from "./ipc";
 import { ensureNotebooksDir } from "./notebooks";
 import { defaultSettings, loadSettings } from "./settings";
 import { SessionManager } from "./shell/manager";
+import {
+  loadWindowState,
+  MIN_SIZE,
+  restoreWindowState,
+  saveWindowState,
+  type WindowState,
+} from "./window-state";
 
-function createWindow(): void {
+function createWindow(saved: WindowState | null, windowStateFile: string): void {
+  const workAreas = screen.getAllDisplays().map((display) => display.workArea);
+  const bounds = restoreWindowState(saved, workAreas);
   const win = new BrowserWindow({
-    width: 1024,
-    height: 720,
+    ...bounds,
+    minWidth: MIN_SIZE.width,
+    minHeight: MIN_SIZE.height,
+    // The page's background (zinc-950), so the window doesn't flash white before it paints.
+    backgroundColor: "#09090b",
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -21,6 +33,21 @@ function createWindow(): void {
   });
 
   win.once("ready-to-show", () => win.show());
+
+  // Remember the window's size and position for the next launch (SPEC §9.4). The
+  // normal bounds, so a maximized window comes back at its unmaximized size. Being
+  // maximized isn't restored: see DECISIONS.md.
+  // On Wayland the position can't be read or set; the compositor places the window.
+  let stateSaved = false;
+  win.on("close", () => {
+    if (stateSaved) return;
+    stateSaved = true;
+    try {
+      saveWindowState(windowStateFile, win.getNormalBounds());
+    } catch (error) {
+      console.error("Could not save the window state:", error);
+    }
+  });
 
   // Autosave waits 500 ms after an edit (SPEC §8), so ask the renderer to save what is
   // still pending before the window goes. A renderer that doesn't answer (crashed,
@@ -64,6 +91,9 @@ function createWindow(): void {
 // before anything touches userData, including the single-instance lock below.
 const APP_ID = "com.codiume.runbook";
 app.setPath("userData", join(app.getPath("appData"), APP_ID));
+
+// The app is dark only (DECISIONS.md); this also darkens native menus and dialogs.
+nativeTheme.themeSource = "dark";
 
 // Block in-page navigation away from the app.
 app.on("web-contents-created", (_event, contents) => {
@@ -113,7 +143,12 @@ if (!app.requestSingleInstanceLock()) {
     });
     registerIpc(settings, sessions);
 
-    createWindow();
+    const windowStateFile = join(app.getPath("userData"), "window-state.json");
+    const windowState = await loadWindowState(windowStateFile).catch((error: unknown) => {
+      console.error("Could not load the window state:", error);
+      return null;
+    });
+    createWindow(windowState, windowStateFile);
   });
 
   app.on("window-all-closed", () => app.quit());

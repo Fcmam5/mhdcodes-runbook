@@ -33,7 +33,7 @@
 <div class="relative" bind:this={root}>
   <button
     type="button"
-    class="rounded px-1.5 py-0.5 text-sm text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800"
+    class="rounded px-1.5 py-0.5 text-sm text-zinc-500 hover:bg-zinc-800"
     title="More"
     aria-label="More"
     aria-haspopup="menu"
@@ -45,15 +45,15 @@
   {#if open}
     <div
       role="menu"
-      class="absolute right-0 z-10 mt-1 min-w-36 rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+      class="absolute right-0 z-10 mt-1 min-w-36 rounded-md border py-1 text-sm shadow-lg border-zinc-700 bg-zinc-900"
     >
       {#each items as item (item.label)}
         <button
           type="button"
           role="menuitem"
           class={[
-            "block w-full px-3 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800",
-            item.danger && "text-red-700 dark:text-red-400",
+            "block w-full px-3 py-1.5 text-left hover:bg-zinc-800",
+            item.danger && "text-red-400",
           ]}
           onclick={() => choose(item)}
         >
