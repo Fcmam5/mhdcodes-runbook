@@ -1,10 +1,13 @@
-// The status line under a shell cell (SPEC §9.3), e.g. "✓ exit 0 · 1.2s". Pure, so it is unit tested.
+// The status row in a shell cell, between its command and its output (SPEC §9.3),
+// e.g. ✓ "exit 0" "· 1.2s". Pure, so it is unit tested.
 import type { CellRunStatus } from "../../../shared/types";
 
 export interface StatusLine {
-  icon: "spinner" | "✓" | "✗" | "■" | null;
-  text: string;
-  tone: "neutral" | "success" | "failure";
+  icon: "spinner" | "ok" | "bad" | "wait" | "halt";
+  text: string; // "exit 0", "running…", "queued", "interrupted"
+  detail: string | null; // the duration, shown fainter: "· 1.2s"
+  tone: "ok" | "bad" | "run" | "idle";
+  hint: string | null; // what the user can do next, shown on the right
 }
 
 export function statusLine(status: CellRunStatus): StatusLine | null {
@@ -12,24 +15,36 @@ export function statusLine(status: CellRunStatus): StatusLine | null {
     case "idle":
       return null;
     case "queued":
-      return { icon: null, text: "queued", tone: "neutral" };
+      return line("wait", "queued", null, "idle", "Runs when the command above ends.");
     case "running":
-      return { icon: "spinner", text: "running…", tone: "neutral" };
+      return line("spinner", "running…", null, "run", "Click the output to type. Ctrl+. stops.");
     case "interrupted":
-      return { icon: "■", text: withDuration("interrupted", status), tone: "neutral" };
+      return line("halt", "interrupted", null, "idle", null);
     case "success":
     case "failed":
-      return {
-        icon: status.state === "success" ? "✓" : "✗",
-        text: withDuration(`exit ${status.exitCode ?? "?"}`, status),
-        tone: status.state === "success" ? "success" : "failure",
-      };
+      return line(
+        status.state === "success" ? "ok" : "bad",
+        `exit ${status.exitCode ?? "?"}`,
+        duration(status),
+        status.state === "success" ? "ok" : "bad",
+        null,
+      );
   }
 }
 
-function withDuration(text: string, { startedAt, endedAt }: CellRunStatus): string {
-  if (startedAt === undefined || endedAt === undefined) return text;
-  return `${text} · ${formatDuration(endedAt - startedAt)}`;
+function line(
+  icon: StatusLine["icon"],
+  text: string,
+  detail: string | null,
+  tone: StatusLine["tone"],
+  hint: string | null,
+): StatusLine {
+  return { icon, text, detail, tone, hint };
+}
+
+function duration({ startedAt, endedAt }: CellRunStatus): string | null {
+  if (startedAt === undefined || endedAt === undefined) return null;
+  return `· ${formatDuration(endedAt - startedAt)}`;
 }
 
 // 0.3s, 1.2s, 59.9s, then 1m 5s.

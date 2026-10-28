@@ -1,80 +1,182 @@
 @import "tailwindcss";
 
-/* SPEC §9.4: the system UI font for prose, a monospace stack for code and output.
-   The cell editors and output panes use --font-mono too. */
+/* The Graphite design (SPEC §9): a calm page, few borders, areas told apart by
+   tone. The editors and the output pane use the same values. Dark only (SPEC §9.4). */
 @theme {
   --font-sans: system-ui, sans-serif;
   --font-mono: "Ubuntu Mono", "DejaVu Sans Mono", monospace;
+
+  /* surfaces, darkest to lightest */
+  --color-out: #111113; /* output panel (xterm) */
+  --color-side: #17171a; /* sidebar */
+  --color-term: #19191c; /* command editor inset */
+  --color-page: #1c1c1f; /* the note */
+  --color-block: #222226; /* shell card */
+  --color-raise: #26262b; /* fields, inline code, hover, menus */
+  --color-sel: #2b2b31; /* selected sidebar row */
+  /* lines */
+  --color-rule-soft: #27272c; /* insets inside a card */
+  --color-rule: #303036; /* card and menu edges */
+  /* text */
+  --color-ink: #ececef; /* titles, commands */
+  --color-body: #d2d2d7; /* prose */
+  --color-muted: #a6a6ae; /* secondary UI */
+  --color-faint: #96969f; /* hints, line numbers, timestamps */
+  /* accent: links, focus, the shell tile */
+  --color-acc: #8ab4f8;
+  /* state */
+  --color-idle: #7a7a83; /* dots only: no session yet */
+  --color-ok: #7fd69b; /* ready, exit 0 */
+  --color-busy: #e9c46a; /* busy, running */
+  --color-dead: #f08a80; /* dead, failed */
+
+  /* radii: card 14 with 8 padding around 6 px insets, so the corners are concentric */
+  --radius-card: 14px;
+  --radius-inset: 6px;
+  --radius-ctl: 7px;
+  --radius-row: 8px;
+  --radius-menu: 10px;
+
+  /* type scale: 11 · 12.5 · 13.5 · 14 · 16 · 20 · 32 */
+  --text-meta: 12.5px;
+  --text-ui: 13.5px;
 }
 
-/* The app is dark only (DECISIONS.md), scrollbars and form controls included. */
 :root {
   color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+::selection {
+  background: color-mix(in srgb, var(--color-acc) 32%, transparent);
+}
+/* In the base layer, so a component's own focus style (outline-none and a ring or
+   background) can replace it. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-acc);
+    outline-offset: 2px;
+  }
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a41 transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
 }
 
-/* Rendered markdown cells. Tailwind's preflight resets these elements, so restyle them. */
+/* Rendered markdown cells. Tailwind's preflight resets these elements, so style them. */
 .markdown {
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 28px;
+  color: var(--color-body);
 
   & > * + * {
-    margin-top: 0.75em;
+    margin-top: 16px;
   }
-  & h1 {
-    font-size: 1.5em;
-    font-weight: 600;
+  & p,
+  & li {
+    text-wrap: pretty;
   }
-  & h2 {
-    font-size: 1.25em;
-    font-weight: 600;
+  & p {
+    max-width: 66ch;
   }
+  & h1,
+  & h2,
   & h3,
   & h4,
   & h5,
   & h6 {
+    color: var(--color-ink);
+    font-weight: 650;
+    text-wrap: balance;
+  }
+  & h1 {
+    font-size: 24px;
+    line-height: 32px;
+    letter-spacing: -0.015em;
+  }
+  & h2 {
+    font-size: 20px;
+    line-height: 28px;
+    letter-spacing: -0.01em;
+  }
+  & h3 {
+    font-size: 17px;
+  }
+  & :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
+    margin-top: 32px;
+  }
+  & :is(h1, h2, h3, h4, h5, h6) + * {
+    margin-top: 8px;
+  }
+  & strong {
+    color: var(--color-ink);
     font-weight: 600;
   }
   & a {
-    color: var(--color-blue-400);
+    color: var(--color-acc);
+    text-decoration: none;
+  }
+  & a:hover {
     text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  & ul,
+  & ol {
+    max-width: 64ch;
+    padding-left: 22px;
   }
   & ul {
     list-style: disc;
-    padding-left: 1.5em;
   }
   & ol {
     list-style: decimal;
-    padding-left: 1.5em;
+  }
+  & li + li {
+    margin-top: 4px;
+  }
+  & li::marker {
+    color: var(--color-faint);
   }
   & blockquote {
-    border-left: 3px solid var(--color-zinc-700);
-    padding-left: 1em;
-    color: var(--color-zinc-500);
+    border-left: 2px solid var(--color-rule);
+    padding-left: 14px;
+    color: var(--color-muted);
   }
   & code,
   & pre {
     font-family: var(--font-mono);
   }
   & :not(pre) > code {
-    border-radius: 4px;
-    background: var(--color-zinc-900);
-    padding: 0.1em 0.3em;
+    font-size: 14.5px;
+    color: var(--color-ink);
+    background: var(--color-raise);
+    padding: 1px 6px;
+    border-radius: 5px;
   }
   & pre {
     overflow-x: auto;
-    border-radius: 8px;
-    background: var(--color-zinc-900);
-    padding: 0.75em 1em;
+    border-radius: var(--radius-inset);
+    background: var(--color-term);
+    box-shadow: inset 0 0 0 1px var(--color-rule-soft);
+    padding: 10px 16px;
+    font-size: 14px;
+    line-height: 22px;
+    color: var(--color-ink);
   }
   & hr {
-    border-color: var(--color-zinc-800);
+    border-color: var(--color-rule);
   }
   & table {
     border-collapse: collapse;
   }
   & th,
   & td {
-    border: 1px solid var(--color-zinc-800);
-    padding: 0.25em 0.75em;
+    border: 1px solid var(--color-rule);
+    padding: 4px 12px;
   }
 }
 
@@ -85,4 +187,37 @@
   inset-inline: 0;
   top: 0;
   visibility: hidden;
+}
+
+/* The spinner in a running cell's status row. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  width: 12px;
+  height: 12px;
+  margin: 0 1px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+/* A shell card's output tools show only while its pane has output. */
+.out-wrap:has(.pane-slot > :not(.output-collapsed)) .out-tools {
+  display: flex;
+}
+/* With no output showing, the status row is the card's last row: pull it in a little,
+   so its text sits evenly between the command and the card's edge. */
+.shell-card:not(:has(.pane-slot > :not(.output-collapsed))) .status-row {
+  height: 30px;
+  margin-bottom: -4px;
+}
+/* Narrow windows drop the status row's hint (design: 800 × 500). */
+@media (max-width: 1000px) {
+  .status-row .hint {
+    display: none;
+  }
 }

@@ -7,11 +7,12 @@
   interface Props {
     source: string;
     autoEdit?: boolean; // a new cell starts in the editor
+    spacing?: string; // its top margin, which depends on the cell before it
     onchange: (source: string) => void;
     ondelete: () => void;
   }
 
-  const { source, autoEdit = false, onchange, ondelete }: Props = $props();
+  const { source, autoEdit = false, spacing = "", onchange, ondelete }: Props = $props();
 
   // Rendered by default; click or Enter edits, Esc or clicking outside renders again (SPEC §9.3).
   let editing = $state(untrack(() => autoEdit));
@@ -57,20 +58,34 @@
   }
 </script>
 
+<!-- Prose first (SPEC §9.3). While editing, the text stays where it was and an
+     accent bar in the margin marks the cell. Its ⋮ sits in the right margin. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="group relative" data-cell {onkeydown}>
-  <div class="absolute -top-1 right-0 z-10 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-    <CellMenu items={[{ label: "Delete cell", onselect: ondelete, danger: true }]} />
+<div class={["group relative", spacing]} data-cell {onkeydown}>
+  <div
+    class="absolute top-0 left-full z-10 ml-2 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+  >
+    <CellMenu
+      items={[
+        {
+          label: "Delete cell",
+          icon: "trash",
+          onselect: ondelete,
+          danger: true,
+          shortcut: "Ctrl+Shift+Backspace",
+        },
+      ]}
+    />
   </div>
   {#if editing}
     <div
-      class="rounded-lg border border-zinc-700"
+      class="relative before:absolute before:top-[3px] before:bottom-[3px] before:-left-[18px] before:w-0.5 before:rounded-full before:bg-acc"
       {@attach editor()}
     ></div>
   {:else}
     <!-- Safe: markdown-it runs with html: false, so the output contains no raw HTML. -->
     <div
-      class="markdown min-h-6 cursor-text rounded-lg focus-visible:outline-2 focus-visible:outline-blue-500"
+      class="markdown min-h-7 cursor-text rounded-sm focus-visible:outline-offset-4"
       data-focus-target
       {@attach focusIfLeftByKeyboard}
       role="button"
@@ -85,7 +100,7 @@
       }}
     >
       {#if source.trim() === ""}
-        <p class="text-zinc-400 italic">Empty markdown cell. Click to write.</p>
+        <p class="text-faint">Empty markdown cell. Click to write.</p>
       {:else}
         {@html html}
       {/if}

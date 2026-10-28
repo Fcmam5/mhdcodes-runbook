@@ -2,17 +2,18 @@
   import type { Snippet } from "svelte";
 
   // Text shown as-is until clicked, then edited in place (SPEC §9.3: title and tags).
-  // Enter or clicking away keeps the change; Esc drops it.
+  // Enter or clicking away keeps the change; Esc drops it. The field takes the shown
+  // text's size, so nothing moves when editing starts.
   interface Props {
     value: string;
     label: string;
     placeholder?: string;
-    inputClass?: string;
+    textClass?: string; // the size and weight of both the text and the field
     oncommit: (value: string) => void;
     children: Snippet;
   }
 
-  const { value, label, placeholder = "", inputClass = "", oncommit, children }: Props = $props();
+  const { value, label, placeholder = "", textClass = "", oncommit, children }: Props = $props();
 
   let editing = $state(false);
   let draft = $state("");
@@ -37,8 +38,8 @@
 {#if editing}
   <input
     class={[
-      "w-full rounded-md border px-2 py-0.5 outline-none focus:border-blue-500 border-zinc-700 bg-zinc-900",
-      inputClass,
+      "-mx-2 block w-[calc(100%+1rem)] rounded-row bg-raise px-2 text-ink outline-none placeholder:text-faint focus:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-acc)_55%,transparent)]",
+      textClass,
     ]}
     aria-label={label}
     {placeholder}
@@ -53,7 +54,10 @@
 {:else}
   <button
     type="button"
-    class="-mx-2 block w-[calc(100%+1rem)] cursor-text rounded-md px-2 py-0.5 text-left hover:bg-zinc-900"
+    class={[
+      "-mx-2 block w-[calc(100%+1rem)] cursor-text rounded-row px-2 text-left hover:bg-white/4",
+      textClass,
+    ]}
     title={`Edit ${label.toLowerCase()}`}
     onclick={start}
   >

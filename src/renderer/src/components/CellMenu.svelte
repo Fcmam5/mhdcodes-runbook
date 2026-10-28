@@ -1,22 +1,14 @@
-<script module lang="ts">
-  export interface MenuItem {
-    label: string;
-    onselect: () => void;
-    danger?: boolean;
-  }
-</script>
-
 <script lang="ts">
-  // A cell's ⋮ menu (SPEC §9.3). Closes on a choice, Esc, or a click outside it.
+  import Icon from "./Icon.svelte";
+  import Menu, { type MenuItem } from "./Menu.svelte";
+
+  // A cell's ⋮ button and its menu (SPEC §9.3). Closes on a choice, Esc, or a click
+  // outside it; Esc gives the focus back to the button.
   const { items }: { items: MenuItem[] } = $props();
 
   let open = $state(false);
   let root: HTMLElement | undefined = $state();
-
-  function choose(item: MenuItem): void {
-    open = false;
-    item.onselect();
-  }
+  let button: HTMLButtonElement | undefined = $state();
 
   function onWindowPointerDown(event: PointerEvent): void {
     if (open && root && !root.contains(event.target as Node)) open = false;
@@ -26,40 +18,33 @@
 <svelte:window
   onpointerdown={onWindowPointerDown}
   onkeydown={(event) => {
-    if (open && event.key === "Escape") open = false;
+    if (open && event.key === "Escape") {
+      event.preventDefault();
+      open = false;
+      button?.focus();
+    }
   }}
 />
 
 <div class="relative" bind:this={root}>
   <button
+    bind:this={button}
     type="button"
-    class="rounded px-1.5 py-0.5 text-sm text-zinc-500 hover:bg-zinc-800"
+    class={[
+      "grid size-7 place-items-center rounded-ctl text-muted hover:bg-white/7 hover:text-ink",
+      open && "bg-white/7 text-ink",
+    ]}
     title="More"
-    aria-label="More"
+    aria-label="Cell menu"
     aria-haspopup="menu"
     aria-expanded={open}
     onclick={() => (open = !open)}
   >
-    ⋮
+    <Icon name="more" />
   </button>
   {#if open}
-    <div
-      role="menu"
-      class="absolute right-0 z-10 mt-1 min-w-36 rounded-md border py-1 text-sm shadow-lg border-zinc-700 bg-zinc-900"
-    >
-      {#each items as item (item.label)}
-        <button
-          type="button"
-          role="menuitem"
-          class={[
-            "block w-full px-3 py-1.5 text-left hover:bg-zinc-800",
-            item.danger && "text-red-400",
-          ]}
-          onclick={() => choose(item)}
-        >
-          {item.label}
-        </button>
-      {/each}
+    <div class="absolute top-[34px] right-0 z-20">
+      <Menu {items} onchoose={() => (open = false)} />
     </div>
   {/if}
 </div>

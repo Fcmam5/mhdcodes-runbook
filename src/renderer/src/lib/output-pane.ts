@@ -12,11 +12,30 @@ import "@xterm/xterm/css/xterm.css";
 
 const MAX_HEIGHT_PX = 400;
 
+// The Graphite terminal theme (SPEC §9.4): the output panel's colour, soft
+// ANSI colours that stay readable on it, and the accent for selections.
 const THEME: ITheme = {
-  background: "#18181b", // zinc-900
-  foreground: "#f4f4f5", // zinc-100
-  cursor: "#f4f4f5",
-  selectionBackground: "#3f3f46", // zinc-700
+  background: "#111113",
+  foreground: "#d6d6da",
+  cursor: "#ececef",
+  cursorAccent: "#111113",
+  selectionBackground: "rgba(138, 180, 248, 0.32)",
+  black: "#2a2a2f",
+  red: "#f38b82",
+  green: "#8fdca2",
+  yellow: "#e9c97a",
+  blue: "#8ab4f8",
+  magenta: "#d7a6f0",
+  cyan: "#86d4e0",
+  white: "#d6d6da",
+  brightBlack: "#96969f",
+  brightRed: "#ff9e96",
+  brightGreen: "#a6e8b6",
+  brightYellow: "#f2d892",
+  brightBlue: "#a8c8ff",
+  brightMagenta: "#e4bdf7",
+  brightCyan: "#a3e3ec",
+  brightWhite: "#f4f4f6",
 };
 
 export interface PaneSize {
@@ -29,11 +48,14 @@ export interface OutputPaneOptions {
   onResize: (size: PaneSize) => void;
 }
 
+// An inset panel. The right padding keeps every line clear of the Copy and Clear
+// buttons the cell lays over its top-right corner.
 const ROOT_CLASSES = [
   "output-collapsed",
-  "overflow-hidden rounded-lg border p-2 border-zinc-800 bg-zinc-900",
-  // A focus ring while the cell runs, when typing goes to the shell.
-  "data-[running=true]:focus-within:border-blue-500 data-[running=true]:focus-within:ring-2 data-[running=true]:focus-within:ring-blue-500/30",
+  "overflow-hidden rounded-inset bg-out py-2.5 pr-16 pl-4 shadow-[inset_0_0_0_1px_var(--color-rule-soft)]",
+  // An amber edge while the cell runs; the accent while typing goes to the shell.
+  "data-[running=true]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-busy)_38%,var(--color-rule-soft))]",
+  "data-[running=true]:focus-within:shadow-[inset_0_0_0_1px_var(--color-acc)]",
 ].join(" ");
 
 export class OutputPane {
@@ -59,7 +81,8 @@ export class OutputPane {
       scrollback: 5000,
       // xterm draws on a canvas and can't use var(), so read the stack from the CSS.
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--font-mono"),
-      fontSize: 14,
+      fontSize: 13.5,
+      lineHeight: 21 / 13.5,
       theme: THEME,
       cursorBlink: true,
       cursorInactiveStyle: "none",
@@ -124,6 +147,22 @@ export class OutputPane {
     if (shown === "") return;
     this.root.classList.remove("output-collapsed");
     this.terminal.write(shown);
+  }
+
+  // Everything the pane shows, as plain text: for Copy output. Trailing blank lines
+  // (the cursor's row, a held newline) are left out.
+  text(): string {
+    const buffer = this.terminal.buffer.active;
+    const lines: string[] = [];
+    for (let row = 0; row < buffer.length; row++) {
+      const line = buffer.getLine(row);
+      if (!line) continue;
+      if (line.isWrapped && lines.length > 0)
+        lines[lines.length - 1] += line.translateToString(true);
+      else lines.push(line.translateToString(true));
+    }
+    while (lines.length > 0 && lines.at(-1) === "") lines.pop();
+    return lines.join("\n");
   }
 
   // Empties the pane for a new run and collapses it until output arrives.

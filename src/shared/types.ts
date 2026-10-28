@@ -41,6 +41,7 @@ export interface RunbookSummary {
   title: string;
   tags: string[];
   mtime: number; // epoch ms
+  preview: string; // the first line of its prose, for the sidebar; "" when empty
 }
 
 export interface Settings {

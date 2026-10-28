@@ -13,8 +13,8 @@ export function createWindow(saved: WindowState | null, windowStateFile: string)
     ...bounds,
     minWidth: MIN_SIZE.width,
     minHeight: MIN_SIZE.height,
-    // The page's background (zinc-950), so the window doesn't flash white before it paints.
-    backgroundColor: "#09090b",
+    // The page's background (Graphite), so the window doesn't flash white before it paints.
+    backgroundColor: "#1c1c1f",
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -35,7 +35,7 @@ export function createWindow(saved: WindowState | null, windowStateFile: string)
 
   // Remember the window's size and position for the next launch (SPEC §9.4). The
   // normal bounds, so a maximized window comes back at its unmaximized size. Being
-  // maximized isn't restored: see DECISIONS.md.
+  // maximized isn't restored: see SPEC §9.4.
   win.once("close", () => {
     const { x, y, width, height } = win.getNormalBounds();
     try {

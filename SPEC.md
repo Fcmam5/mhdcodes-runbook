@@ -2,7 +2,7 @@
 
 > Working name: **Runbook** (package name `runbook`). The name may change later; keep it in one constant/config place.
 >
-> This document is the source of truth for the MVP. Build only what is listed under **In scope**. Design decisions settled in review are folded into this document directly. If something is still ambiguous during implementation, choose the simplest option that satisfies the acceptance criteria and note the decision in `DECISIONS.md`.
+> This document is the source of truth for the MVP. Build only what is listed under **In scope**. Design decisions settled in review are folded into this document directly. If something is still ambiguous during implementation, choose the simplest option that satisfies the acceptance criteria, and update this document so it keeps describing what is built.
 
 ---
 
@@ -47,24 +47,29 @@ Also out of scope: input/variable cells, check cells, run history persistence (S
 
 Use the latest **stable** versions at the time of scaffolding (no betas). Versions below were current on 2026-10-25.
 
-| Concern               | Choice                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------- |
-| App shell             | Electron                                                                              |
-| Build tooling         | `electron-vite` (Vite for main, preload, renderer)                                    |
-| Language              | TypeScript, `strict: true` everywhere                                                 |
-| UI                    | Svelte                                                                                |
-| Styling               | Tailwind                                                                              |
-| Terminal output       | `@xterm/xterm` 6.0 + `@xterm/addon-fit`                                               |
-| PTY                   | `node-pty` 1.1 (main process only; native module, see §11)                            |
-| Code editing in cells | CodeMirror 6 (`@codemirror/lang-markdown`, shell mode via `@codemirror/legacy-modes`) |
-| Markdown rendering    | `markdown-it` 15 with `html: false` (no raw HTML)                                     |
-| Frontmatter           | `yaml` 2 (Document API, so comments and formatting survive edits)                     |
-| IDs                   | `nanoid` (8-char, URL-safe)                                                           |
-| Search                | In-memory search over loaded runbooks (`minisearch`)                                  |
-| Tests                 | `vitest` 5                                                                            |
-| Packaging             | `electron-builder` (targets: `deb`, `AppImage`)                                       |
+| Concern               | Choice                                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| App shell             | Electron                                                                                                                          |
+| Build tooling         | `electron-vite` (Vite for main, preload, renderer)                                                                                |
+| Language              | TypeScript, `strict: true` everywhere                                                                                             |
+| UI                    | Svelte                                                                                                                            |
+| Styling               | Tailwind                                                                                                                          |
+| Terminal output       | `@xterm/xterm` 6.0 + `@xterm/addon-fit`                                                                                           |
+| PTY                   | `node-pty` 1.1 (main process only; native module, see §11)                                                                        |
+| Code editing in cells | CodeMirror 6 (`@codemirror/lang-markdown`, shell mode via `@codemirror/legacy-modes`, `@codemirror/commands`, `@lezer/highlight`) |
+| Markdown rendering    | `markdown-it` 15 with `html: false` (no raw HTML)                                                                                 |
+| Frontmatter           | `yaml` 2 (Document API, so comments and formatting survive edits)                                                                 |
+| IDs                   | `nanoid` (8-char, URL-safe)                                                                                                       |
+| Search                | In-memory search over loaded runbooks (`minisearch`)                                                                              |
+| Tests                 | `vitest` 5                                                                                                                        |
+| Packaging             | `electron-builder` (targets: `deb`, `AppImage`)                                                                                   |
 
-Do not add dependencies beyond this list without a clear reason recorded in `DECISIONS.md`.
+Do not add dependencies beyond this list without a clear reason; when one is needed, add it to this section with the reason.
+
+- `@codemirror/commands`: an editable CodeMirror needs it for undo history and the standard keymap (Backspace and Delete by word, Home/End, selection moves). Without it, cells couldn't be undone and many keys would do nothing.
+- `@lezer/highlight`: its `tags` define the editors' own highlight styles. CodeMirror's `defaultHighlightStyle` uses dark colours meant for light backgrounds, unreadable on the app's dark theme.
+
+Both are CodeMirror's own core packages. Like the rest of CodeMirror (and Svelte, Tailwind, xterm.js) they are devDependencies, because the renderer bundles them.
 
 ---
 
@@ -102,6 +107,26 @@ export interface CellRunStatus {
 }
 
 export type SessionState = "starting" | "ready" | "busy" | "dead";
+
+// A runbook as listed in the sidebar, without its cells.
+export interface RunbookSummary {
+  path: string;
+  title: string;
+  tags: string[];
+  mtime: number; // epoch ms, shown as "Edited …" (§9.3)
+  preview: string; // the first line of its prose, markdown syntax removed; "" when empty (§9.2)
+}
+
+// A search hit for the sidebar (§9.2).
+export interface SearchResult {
+  path: string;
+  title: string;
+  snippet: string; // one line around the first match, or the runbook's first line
+}
+
+export interface Settings {
+  runbooksDir: string; // absolute path
+}
 ```
 
 Run status and output are **in memory only** for the MVP (lost on app restart).
@@ -249,7 +274,7 @@ Why this shape (verified against real bash under a pty):
 
 1. Wait for the `rb-ready` marker before marking the session `ready`. Discard all output before it (rc noise, MOTD). If it doesn't arrive within **10 s**, kill the pty, mark the session `dead`, and show a notice: "Shell didn't start. Your ~/.bashrc may exec another shell or wait for input." Include the first lines of the startup output to help debugging.
 2. To run a cell:
-   - Write the cell source to a temp file `<tempRoot>/<sessionId>/<runId>.sh` (mode 0600; session folder 0700). `tempRoot` is created once per app run with `mkdtemp(<os.tmpdir()>/runbook-)` (see DECISIONS.md). `runId = nanoid(8)`.
+   - Write the cell source to a temp file `<tempRoot>/<sessionId>/<runId>.sh` (mode 0600; session folder 0700). `tempRoot` is created once per app run with `mkdtemp(<os.tmpdir()>/runbook-)`, a fresh folder only this user can write to. A fixed name like `/tmp/runbook` is unsafe in a shared `/tmp`: another user could create it first and swap a script between the moment it is written and the moment bash sources it. `runId = nanoid(8)`.
    - Write the line `__rb_run <runId> <tmpPath>\n` to the pty. Because echo is off, this line is not displayed.
    - Using `source` (not a subshell) is what makes `cd`/`export`/aliases persist.
 3. Parse the pty output stream for OSC 777 markers, `ESC ] 777 ; ... BEL`.
@@ -260,7 +285,7 @@ Why this shape (verified against real bash under a pty):
 4. **One cell at a time per session.** If a run is requested while busy, queue it (state `queued`) and run it in FIFO order. Cancelling a queued cell removes it from the queue.
 5. **Stop:** write `\x03` to the pty, once `rb-start` has arrived (before it, bash may not have read the run line, and Ctrl+C would discard it). When the subsequent `rb-done` arrives with code 130 (or any code after a stop was requested), set state `interrupted`; code 130 also means `interrupted` when Ctrl+C was typed into the pane. A Ctrl+C sent just as a command starts can reach bash instead of the command and be lost, so a stop within 1 s of the run's start is sent once more after 500 ms if the run is still going. Later stops send a single Ctrl+C: to many programs a second one means "skip the clean shutdown". Because echo is on during a run, the output shows `^C` before the marker, as in a terminal.
 6. **User input:** while a cell is running, keystrokes from its xterm instance (`onData`) are written to the pty. Input from non-running cells' terminals is ignored. Input the cell never reads is discarded when the run ends (§6.2).
-7. **Session death:** if the pty exits (e.g. a cell ran `exit`, or a command failed under `set -e`), mark the running cell `failed` with the shell's exit status as `exitCode`, mark the session `dead`, and reject queued runs. The next run request transparently spawns a fresh session. Show a notice in the runbook: "Shell session ended (exit N). A `set -e` or `exit` in a cell ends the session. Next run will start a new session."
+7. **Session death:** if the pty exits (e.g. a cell ran `exit`, or a command failed under `set -e`), mark the running cell `failed` with the shell's exit status as `exitCode`, mark the session `dead`, and reject queued runs. The next run request transparently spawns a fresh session. Show a notice in the runbook: "Shell session ended (exit N). A `set -e` or `exit` in a cell ends the session. The next run starts a new one."
 8. **Restart session:** kill the pty and spawn a new one; clear the queue; mark any running cell `interrupted`.
 9. On app quit, kill all ptys and remove the temp directory.
 
@@ -294,7 +319,7 @@ Renderer ↔ main communicate only through a typed `window.api` exposed by the p
 // Requests (ipcRenderer.invoke / ipcMain.handle)
 interface Api {
   // runbooks
-  listRunbooks(): Promise<RunbookSummary[]>; // { path, title, tags, mtime }
+  listRunbooks(): Promise<RunbookSummary[]>; // { path, title, tags, mtime, preview }
   readRunbook(path: string): Promise<Runbook>;
   saveRunbook(nb: Runbook): Promise<void>; // atomic write
   createRunbook(title: string): Promise<Runbook>; // slugified filename, unique
@@ -349,51 +374,63 @@ All main-process handlers must validate that any `path` argument resolves to a f
 
 ## 9. UI specification
 
+The design, Graphite, makes a runbook read as a note: a calm page with few borders, areas told apart by tone rather than lines, and each shell cell a card. Every colour, size and radius is a token in `app.css`, and the editors and the output pane use the same values.
+
 ### 9.1 Layout
 
 ```txt
-┌───────────────┬───────────────────────────────────────────────┐
-│ [Search…    ] │  Fix audio after kernel update  [⟳ Session ●]│
-│               │  tags: audio, pipewire                        │
-│ + New         │ ───────────────────────────────────────────── │
-│               │  Restart PipeWire first; this fixes it…       │
-│ ▸ Fix audio…● │                                               │
-│ ▸ New dev box │  ┌ bash ─────────────────────── [▶] [■] [⋮] ┐ │
-│ ▸ Welcome     │  │ systemctl --user restart pipewire …      │ │
-│               │  └──────────────────────────────────────────┘ │
-│               │   ✓ exit 0 · 0.4s                             │
-│               │  ┌ output (xterm) ──────────────────────────┐ │
-│               │  │ …                                        │ │
-│               │  └──────────────────────────────────────────┘ │
-│               │            [+ Markdown]  [+ Shell]            │
-└───────────────┴───────────────────────────────────────────────┘
+┌─────────────────┬─────────────────────────────────────────────────┐
+│ [⌕ Search  ⌃K]  │  Edited 2 minutes ago  ● Shell busy  Restart     │
+│ Runbooks      + │  Fix audio after kernel update                  │
+│ ┌─────────────┐ │  #audio  #pipewire                              │
+│ │Fix audio… ● │ │                                                 │
+│ │Restart Pipe…│ │  Restart PipeWire first; this fixes it…         │
+│ └─────────────┘ │  ┌───────────────────────────────────────────┐  │
+│  New dev box    │  │ >_ bash                             ▶  ⋮ │  │
+│  Packages, dot… │  │ ┌ 1  systemctl --user restart pipewire … ┐ │  │
+│                 │  │ ✓ exit 0 · 0.4s                           │  │
+│                 │  │ ┌ output (xterm)                   ⧉  ≡× ┐ │  │
+│                 │  └───────────────────────────────────────────┘  │
+│ ▭ ~/Runbooks    │  Keep writing…            + Markdown   + Shell  │
+└─────────────────┴─────────────────────────────────────────────────┘
 ```
+
+The sidebar is 272 px wide (224 px below a 1000 px window), and the runbook is a centred column up to 680 px wide.
 
 ### 9.2 Sidebar
 
-- Search box at the top; empty query shows all runbooks sorted by title. A non-empty query shows results with a one-line snippet.
-- "+ New" opens an inline title input and then opens the new runbook.
-- Right-click (or ⋮) on an item: Rename, Delete (with confirm dialog), Show in folder.
-- Runbooks with a live session show the session dot (same colours as the header), so a cell still running in the background is visible.
+- **Search** at the top, with a `Ctrl K` hint (or a clear button while there's a query). An empty query lists every runbook sorted by title. A non-empty query lists the results under "N results" (or "No matches"), each with a one-line snippet that starts just before the first match and marks the matched words.
+- A **+** button beside "Runbooks" (or the result count) opens an inline title input, then opens the new runbook.
+- Each runbook shows its title and a **one-line preview**: the first line of its prose, with markdown syntax removed (its first command when it has no prose; "Empty" when it has nothing). Narrow windows drop the previews but keep search snippets.
+- Runbooks with a live session show the **session dot** (same colours as the runbook view), so a cell still running in the background is visible. On hover the dot gives way to a ⋮ button.
+- **Right-click or ⋮** on a runbook opens its menu: Rename (inline), Show in folder, Delete… (with a confirm dialog; the file goes to the trash).
+- The runbooks folder is shown at the bottom (`~/Runbooks`).
 
 ### 9.3 Runbook view
 
-- Header: editable title (click to edit; the title names the file, so editing it renames the runbook like the sidebar's Rename, §8), tags (comma-separated inline editor), session indicator dot (grey = no session, green = ready, amber = busy, red = dead) with a "Restart session" action.
-- Cells in a vertical list, with an "add cell below" control between cells that shows on hover.
-- **Markdown cell:** rendered by default. Click or Enter (when focused) switches to a CodeMirror editor; Esc or clicking outside renders it again.
+- **Notices** at the top of the runbook (§6.3), dismissable: what happened and what happens next, with the first lines of startup output when the shell didn't start.
+- **Meta line:** "Edited 2 minutes ago" (from the file's modification time, updated as the window saves it; "just now", minutes, hours, "yesterday", days, then a date), then the session: a dot (grey = no session yet, green = ready, amber = busy or starting, red = dead) and its state in words ("No session yet", "Shell starting", "Shell ready", "Shell busy", "Shell ended"), with a "Restart" action once there is a session.
+- **Title:** click to edit. The title names the file, so editing it renames the runbook like the sidebar's Rename (§8).
+- **Tags** shown as `#tag`, edited as a comma-separated list; "Add tags" when there are none.
+- **Cells** in a vertical list. Between two cells, a "+ Markdown / + Shell" control appears on hover or keyboard focus, without moving the cells. After the last cell: "Keep writing…" (adds a markdown cell), "+ Markdown" and "+ Shell".
+- **Markdown cell:** rendered by default. Click or Enter (when focused) switches to a CodeMirror editor in the same font and size, its markdown syntax dimmed, with an accent bar in the left margin; the text doesn't move. Esc or clicking outside renders it again. Its ⋮ menu (Delete cell) sits in the right margin.
 - **Links in rendered markdown:** `http:` and `https:` links open in the system browser. All other schemes (`file:`, `javascript:`, relative paths) do nothing.
-- **Shell cell:** always shows a CodeMirror editor (bash highlighting, monospace). Toolbar: Run ▶ (becomes Stop ■ while running or queued), and a menu ⋮ with "Clear output" and "Delete cell".
-- **Status line** under a shell cell after its first run: spinner + "running…", "queued", "✓ exit 0 · 1.2s", "✗ exit 2 · 0.3s", or "■ interrupted".
-- **Output pane:** an xterm.js instance created on first run of that cell. Auto-height up to 400 px, then it scrolls (scrollback 5000 lines). Each new run clears the previous output. Clicking into the pane while the cell runs focuses it for typing input. When a running cell prints output and the keyboard focus is free (on nothing, or still on that cell's Run/Stop button), the pane takes focus by itself, so a prompt like `sudo`'s password can be answered without a click; focus the user has put elsewhere is never taken. Hide the pane if output is empty.
-- **Session notices** (shell didn't start, session ended) appear at the top of the runbook view (§6.3).
-- Empty runbook state: "This runbook is empty" with "+ Markdown" and "+ Shell" buttons.
+- **Shell cell:** a card in four parts:
+  1. A header: a `>_` tile, the fence language (`bash`), Run ▶ (Stop ■ while running or queued), and a ⋮ menu with "Clear output" and "Delete cell".
+  2. The command: a CodeMirror editor (bash highlighting, monospace) with line numbers. Long commands wrap.
+  3. A **status row** after the first run: an icon and "running…" (spinner), "queued", "exit 0 · 1.2s" (✓, green), "exit 2 · 0.3s" (✗, red), or "interrupted" (■). While running it adds "Click the output to type. Ctrl+. stops."; while queued, "Runs when the command above ends."
+  4. The **output pane:** an xterm.js instance created on the cell's first run. It grows up to 400 px, then scrolls (scrollback 5000 lines); long lines wrap at its width. Each new run clears the previous output, and the pane is hidden while empty. While it has output, **Copy output** and **Clear output** buttons sit over its top-right corner (the pane keeps that strip free of text). Clicking into the pane while the cell runs focuses it for typing input. When a running cell prints output and the keyboard focus is free (on nothing, or still on that cell's Run/Stop button), the pane takes focus by itself, so a prompt like `sudo`'s password can be answered without a click; focus the user has put elsewhere is never taken.
+
+  A running cell's card and output pane get an amber edge; a queued cell is dimmed, with Stop still available.
+
+- **Empty runbook:** "This runbook is empty", a sentence on what a runbook is, and "+ Markdown" and "+ Shell" buttons.
 
 ### 9.4 Look & feel
 
-- Follow the system light/dark preference (`prefers-color-scheme`); xterm theme matches.
-- System UI font for prose; a monospace stack (`"Ubuntu Mono", "DejaVu Sans Mono", monospace`) for code and output.
-- Clean and calm: generous spacing, subtle borders, no gradients.
-- Window: default 1200×800, minimum 800×500; remember size and position across launches.
+- **Dark only.** One theme is enough for this app, and it keeps the colours in step across Tailwind classes, the markdown styles, the xterm theme and the editors. `nativeTheme.themeSource` is `"dark"`, so native menus and dialogs match.
+- System UI font for prose and UI; a monospace stack (`"Ubuntu Mono", "DejaVu Sans Mono", monospace`) for code, commands and output.
+- Clean and calm: generous spacing, subtle borders, no gradients. Text meets 4.5:1 contrast on every surface it sits on.
+- **Window:** default 1200×800, minimum 800×500. Its size and position are remembered across launches: the size is fitted to the screen it opens on (never below the minimum), and the position is kept only if the window's top edge lands on a screen; otherwise it is centred. Being maximized is not restored: on GNOME under X11 the window manager often undoes a maximize sent just after the window is shown, and only an arbitrary delay helped. On Wayland only the size is saved, as the compositor places windows.
 
 ### 9.5 Keyboard shortcuts
 
@@ -426,7 +463,7 @@ The scaffolding is already Linux-only: `electron-builder.yml` targets `deb` and 
 ### M1 — Runbook format & storage
 
 - Implement `parse` / `serialize` (§5) with fixtures in `tests/fixtures/`: frontmatter variants (including comments and flow lists), no frontmatter, missing IDs, nested fences, non-bash code blocks, `sh`/`shell` fences and extra info-string attributes, fences inside lists and blockquotes, unclosed fence, CRLF line endings, empty file.
-- Implement `storage.ts` and `settings.ts` (§8).
+- Implement `runbooks.ts` (storage) and `settings.ts` (§8).
 - ✅ All round-trip tests pass. Creating/renaming/deleting via a temporary test harness works on disk.
 
 ### M2 — Shell session engine
@@ -473,5 +510,5 @@ The scaffolding is already Linux-only: `electron-builder.yml` targets `deb` and 
   - It uses N-API: one compiled binary loads in both plain Node (vitest) and Electron, so no `electron-rebuild` step is needed.
   - electron-builder unpacks native modules from the asar automatically; no `asarUnpack` config is needed, and the Electron fuses don't interfere.
 - Prefer small, focused modules and explicit types over cleverness.
-- Record any deviation from this spec, and why, in `DECISIONS.md`.
+- When the implementation deliberately differs from this spec, change the spec in the same commit, with the reason where it isn't obvious.
 - Don't implement anything from §2 "Out of scope".

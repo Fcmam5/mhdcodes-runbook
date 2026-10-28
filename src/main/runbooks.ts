@@ -15,6 +15,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { previewOf } from "../shared/preview";
 import { parse, serialize } from "../shared/runbook";
 import type { Cell, Runbook, RunbookSummary } from "../shared/types";
 import { isCode } from "./fs";
@@ -47,8 +48,8 @@ export async function listRunbooks(dir: string): Promise<RunbookSummary[]> {
       const path = join(dir, entry.name);
       try {
         const [text, info] = await Promise.all([readFile(path, "utf8"), stat(path)]);
-        const { title, tags } = parse(text, path);
-        return { path, title, tags, mtime: info.mtimeMs };
+        const { title, tags, cells } = parse(text, path);
+        return { path, title, tags, mtime: info.mtimeMs, preview: previewOf(cells) };
       } catch {
         return null;
       }

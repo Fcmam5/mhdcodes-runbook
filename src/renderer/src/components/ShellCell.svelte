@@ -7,6 +7,7 @@
   import { shellEditor } from "../lib/codemirror";
   import { existingPane, forgetCell, paneFor, runCell, runs, stopCell } from "../lib/runs";
   import CellMenu from "./CellMenu.svelte";
+  import Icon from "./Icon.svelte";
 
   interface Props {
     runbookPath: string;
@@ -81,6 +82,22 @@
     if (handled) event.preventDefault();
   }
 
+  // Copy output (SPEC §9.3): the pane's text to the clipboard. The button shows
+  // a tick for a moment so the copy is visible.
+  let copied = $state(false);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  async function copyOutput(): Promise<void> {
+    const text = existingPane(runbookPath, cell.id)?.text() ?? "";
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      return; // e.g. the window lost focus; the tick just doesn't show
+    }
+    copied = true;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => (copied = false), 1200);
+  }
+
   function remove(): void {
     if (active) stopCell(runbookPath, cell.id);
     // Its pane would otherwise stay in memory until the window closes.
@@ -100,60 +117,119 @@
   };
 </script>
 
+<!-- One card per cell (SPEC §9.3): header, command, status, output. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="relative flex flex-col gap-1.5" data-cell {onkeydown}>
-  <!-- No overflow-hidden: it would clip the ⋮ menu. -->
-  <div class="rounded-lg border border-zinc-800">
-    <div
-      class="flex items-center justify-between rounded-t-lg border-b py-1 pr-1 pl-3 border-zinc-800 bg-zinc-900"
+<div
+  class={[
+    "shell-card relative mt-5 mb-6 rounded-card border bg-block p-2",
+    run.status?.state === "running"
+      ? "border-[color-mix(in_srgb,var(--color-busy)_42%,var(--color-rule))]"
+      : "border-rule",
+  ]}
+  data-cell
+  {onkeydown}
+>
+  <div class="mb-1.5 flex h-9 items-center gap-2.5 pr-0.5 pl-1">
+    <span
+      class={[
+        "grid size-6 place-items-center rounded-inset bg-[color-mix(in_srgb,var(--color-acc)_18%,var(--color-block))] font-mono text-[11px] leading-none font-bold tracking-[-0.06em] text-ink",
+        run.status?.state === "queued" && "opacity-60",
+      ]}
+      aria-hidden="true">&gt;_</span
     >
-      <span class="font-mono text-xs text-zinc-500">{cell.info ?? "bash"}</span>
-      <span class="flex items-center gap-0.5">
+    <span class={["text-ui text-body", run.status?.state === "queued" && "opacity-60"]}
+      >{cell.info ?? "bash"}</span
+    >
+    <span class="ml-auto flex gap-1">
       <button
         bind:this={runButton}
         type="button"
-        class="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-800"
-        title={active ? "Stop" : "Run"}
+        class={[
+          "grid size-7 place-items-center rounded-ctl",
+          active
+            ? "bg-[color-mix(in_srgb,var(--color-busy)_18%,var(--color-block))] text-busy hover:bg-[color-mix(in_srgb,var(--color-busy)_26%,var(--color-block))]"
+            : "bg-white/9 text-ink hover:bg-white/15",
+        ]}
+        title={active ? "Stop (Ctrl+.)" : "Run (Ctrl+Enter)"}
         aria-label={active ? "Stop" : "Run"}
         onclick={() => (active ? stopCell(runbookPath, cell.id) : start())}
       >
-        {#if active}■{:else}▶&#xFE0E;{/if}
+        <Icon name={active ? "stop" : "run"} size={14} />
       </button>
       <CellMenu
         items={[
-          { label: "Clear output", onselect: () => existingPane(runbookPath, cell.id)?.clear() },
-          { label: "Delete cell", onselect: remove, danger: true },
+          {
+            label: "Clear output",
+            icon: "clear",
+            onselect: () => existingPane(runbookPath, cell.id)?.clear(),
+          },
+          {
+            label: "Delete cell",
+            icon: "trash",
+            onselect: remove,
+            danger: true,
+            shortcut: "Ctrl+Shift+Backspace",
+          },
         ]}
       />
-      </span>
-    </div>
-    <div {@attach editor}></div>
+    </span>
   </div>
+
+  <div
+    class={[
+      "rounded-inset bg-term shadow-[inset_0_0_0_1px_var(--color-rule-soft)]",
+      run.status?.state === "queued" && "opacity-60",
+    ]}
+    {@attach editor}
+  ></div>
 
   {#if line}
     <p
       class={[
-        "flex items-center gap-1.5 px-1 font-mono text-xs",
-        line.tone === "success" && "text-green-400",
-        line.tone === "failure" && "text-red-400",
-        line.tone === "neutral" && "text-zinc-500",
+        "status-row flex h-8 items-center gap-2 px-1 font-mono text-meta",
+        line.tone === "ok" && "text-ok",
+        line.tone === "bad" && "text-dead",
+        line.tone === "run" && "text-busy",
+        line.tone === "idle" && "text-faint",
       ]}
     >
       {#if line.icon === "spinner"}
-        <span
-          class="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent"
-          aria-hidden="true"
-        ></span>
-      {:else if line.icon}
-        <span aria-hidden="true">{line.icon}</span>
+        <span class="spin" aria-hidden="true"></span>
+      {:else}
+        <Icon name={line.icon} size={14} />
       {/if}
       {line.text}
+      {#if line.detail}<span class="text-faint">{line.detail}</span>{/if}
+      {#if line.hint}<span class="hint ml-auto font-sans text-faint">{line.hint}</span>{/if}
     </p>
   {/if}
   {#if run.error}
-    <p class="px-1 text-xs text-red-400">{run.error}</p>
+    <p class="px-1 pb-1 text-meta text-dead">{run.error}</p>
   {/if}
 
-  <!-- The output pane goes here; `contents` keeps the slot itself out of the layout. -->
-  <div class="contents" {@attach attachPane}></div>
+  <!-- The output pane goes in the slot; `contents` keeps the slot itself out of the
+       layout. Copy and Clear sit over its top-right corner once there is output. -->
+  <div class="out-wrap relative">
+    <div class="pane-slot contents" {@attach attachPane}></div>
+    <span class="out-tools absolute top-1.5 right-1.5 hidden gap-0.5">
+      <button
+        type="button"
+        class="grid size-7 place-items-center rounded-ctl text-faint hover:bg-white/7 hover:text-ink"
+        title={copied ? "Copied" : "Copy output"}
+        aria-label="Copy output"
+        onclick={() => void copyOutput()}
+      >
+        <Icon name={copied ? "check" : "copy"} size={14} />
+      </button>
+      <button
+        type="button"
+        class="grid size-7 place-items-center rounded-ctl text-faint hover:bg-white/7 hover:text-ink"
+        title="Clear output"
+        aria-label="Clear output"
+        onclick={() => existingPane(runbookPath, cell.id)?.clear()}
+      >
+        <Icon name="clear" size={14} />
+      </button>
+    </span>
+  </div>
 </div>

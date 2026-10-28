@@ -3,7 +3,8 @@
   import { messageOf } from "./state/errors";
   import RunbookView from "./components/RunbookView.svelte";
   import Sidebar from "./components/Sidebar.svelte";
-  import { runbooks as openRunbooks } from "./lib/runbooks";
+  import { runbooks as openRunbooks, savedAt } from "./lib/runbooks";
+  import { previewOf } from "../../shared/preview";
   import { claimPath, forgetRuns, renameRuns } from "./lib/runs";
 
   const saveErrors = openRunbooks.errors;
@@ -29,12 +30,20 @@
   // The runbook on screen, with every edit so far: the store is the source of truth
   // for open runbooks.
   const runbook: Runbook | null = $derived(shown === null ? null : ($openRunbooks[shown] ?? null));
-  // The sidebar shows titles as edited, before the file is listed again.
+  // The sidebar shows titles and previews as edited, before the file is listed again.
   const listed = $derived(
-    runbooks.map((summary) => ({
-      ...summary,
-      title: $openRunbooks[summary.path]?.title ?? summary.title,
-    })),
+    runbooks.map((summary) => {
+      const edited = $openRunbooks[summary.path];
+      return edited
+        ? { ...summary, title: edited.title, preview: previewOf(edited.cells) }
+        : summary;
+    }),
+  );
+  // When the runbook on screen was last saved, for "Edited …".
+  const mtime = $derived(
+    shown === null
+      ? null
+      : ($savedAt[shown] ?? runbooks.find((summary) => summary.path === shown)?.mtime ?? null),
   );
 
   async function open(path: string): Promise<void> {
@@ -81,7 +90,13 @@
       openRunbooks.open(created);
       runbooks = sorted([
         ...runbooks,
-        { path: created.path, title: created.title, tags: created.tags, mtime: Date.now() },
+        {
+          path: created.path,
+          title: created.title,
+          tags: created.tags,
+          mtime: Date.now(),
+          preview: "",
+        },
       ]);
       error = null;
       await open(created.path);
@@ -102,7 +117,9 @@
       renameRuns(path, moved.path);
       runbooks = sorted(
         runbooks.map((summary) =>
-          summary.path === path ? { ...summary, path: moved.path, title: moved.title } : summary,
+          summary.path === path
+            ? { ...summary, path: moved.path, title: moved.title, mtime: Date.now() }
+            : summary,
         ),
       );
       if (selected === path) selected = moved.path;
@@ -162,10 +179,13 @@
 
 <svelte:window {onkeydown} />
 
-<div class="flex h-screen bg-zinc-950 text-zinc-100">
+<div
+  class="grid h-screen grid-cols-[272px_1fr] bg-page font-sans text-ink max-[1000px]:grid-cols-[224px_1fr]"
+>
   <Sidebar
     bind:this={sidebar}
     runbooks={listed}
+    folder={runbooksDir}
     {selected}
     onselect={(path) => void open(path)}
     oncreate={create}
@@ -174,24 +194,28 @@
     onreveal={reveal}
   />
 
-  <main class="flex-1 overflow-y-auto">
+  <main class="min-w-0 overflow-y-auto">
     {#if error}
-      <p class="m-6 rounded-md p-3 text-sm bg-red-950 text-red-300">
+      <p
+        class="mx-auto mt-6 max-w-[680px] rounded-menu border border-[color-mix(in_srgb,var(--color-dead)_28%,var(--color-page))] bg-[color-mix(in_srgb,var(--color-dead)_8%,var(--color-page))] px-3.5 py-3 text-[14px] leading-[22px] text-body"
+      >
         {error}
       </p>
     {/if}
     {#if shown && $saveErrors[shown]}
-      <p class="m-6 mb-0 rounded-md p-3 text-sm bg-red-950 text-red-300">
-        Couldn't save this runbook: {$saveErrors[shown]}. Your changes are kept; the next
-        edit tries again.
+      <p
+        class="mx-auto mt-6 max-w-[680px] rounded-menu border border-[color-mix(in_srgb,var(--color-dead)_28%,var(--color-page))] bg-[color-mix(in_srgb,var(--color-dead)_8%,var(--color-page))] px-3.5 py-3 text-[14px] leading-[22px] text-body"
+      >
+        <strong class="font-semibold text-ink">Couldn't save this runbook.</strong>
+        {$saveErrors[shown]}. Your changes are kept; the next edit tries again.
       </p>
     {/if}
     {#if runbook}
       {#key runbook.path}
-        <RunbookView {runbook} onrename={(title) => void rename(runbook.path, title)} />
+        <RunbookView {runbook} {mtime} onrename={(title) => void rename(runbook.path, title)} />
       {/key}
     {:else if runbooks.length === 0 && runbooksDir}
-      <p class="py-12 text-center text-zinc-500">No runbooks in {runbooksDir}</p>
+      <p class="py-12 text-center text-[14px] text-faint">No runbooks in {runbooksDir}</p>
     {/if}
   </main>
 </div>

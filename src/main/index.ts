@@ -13,7 +13,7 @@ import { loadWindowState } from "./window-state";
 const APP_ID = "codes.mhd.runbook";
 app.setPath("userData", join(app.getPath("appData"), APP_ID));
 
-// The app is dark only (DECISIONS.md); this also darkens native menus and dialogs.
+// The app is dark only (SPEC §9.4); this also darkens native menus and dialogs.
 nativeTheme.themeSource = "dark";
 
 // Block in-page navigation away from the app.

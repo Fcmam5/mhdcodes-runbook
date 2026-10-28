@@ -98,10 +98,10 @@ describe("ensureRunbooksDir", () => {
 });
 
 describe("listRunbooks", () => {
-  it("lists .md files sorted by title, with tags and mtime", async () => {
+  it("lists .md files sorted by title, with tags, mtime and a preview", async () => {
     await mkdir(dir);
     await writeFile(join(dir, "zeta.md"), "---\ntitle: Alpha\ntags: [x]\n---\n");
-    await writeFile(join(dir, "beta.md"), "Text\n");
+    await writeFile(join(dir, "beta.md"), "## Some **text**\n\n```bash\nls\n```\n");
     await writeFile(join(dir, "item10.md"), "");
     await writeFile(join(dir, "item9.md"), "");
 
@@ -114,6 +114,7 @@ describe("listRunbooks", () => {
     ]);
     expect(list[0]?.path).toBe(join(dir, "zeta.md"));
     expect(list[0]?.mtime).toBeGreaterThan(0);
+    expect(list.map((nb) => nb.preview)).toEqual(["", "Some text", "", ""]);
   });
 
   it("skips other files, hidden files, subfolders and unreadable entries", async () => {

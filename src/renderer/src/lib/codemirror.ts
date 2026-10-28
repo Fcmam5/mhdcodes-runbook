@@ -3,7 +3,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { EditorState, Prec, type Extension } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { Attachment } from "svelte/attachments";
 
@@ -16,63 +16,87 @@ export interface EditorOptions {
   shortcuts?: Record<string, () => void>;
 }
 
-// The app is dark only; `dark: true` switches CodeMirror's base theme to its dark
-// variant. The editors use the browser's own caret and selection (no drawSelection),
-// so the caret is coloured with caret-color and the selection follows color-scheme.
-const theme = EditorView.theme(
+// The Graphite design (SPEC §9.4). `dark: true` switches CodeMirror's base
+// theme to its dark variant. The editors use the browser's own caret and selection
+// (no drawSelection), so the caret is coloured with caret-color.
+const baseTheme = EditorView.theme(
   {
-    "&": { fontSize: "14px", backgroundColor: "transparent" },
+    "&": { backgroundColor: "transparent", color: "var(--color-ink)" },
     "&.cm-focused": { outline: "none" },
-    ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.5" },
-    ".cm-content": { padding: "8px 0", caretColor: "#f4f4f5" },
-    ".cm-line": { padding: "0 12px" },
+    ".cm-content": { caretColor: "var(--color-acc)" },
   },
   { dark: true },
 );
 
-// CodeMirror's default highlight colours are for light backgrounds; these are their
-// counterparts for dark ones.
-const highlightStyle = HighlightStyle.define([
-  { tag: tags.meta, color: "#a1a1aa" },
-  { tag: tags.link, textDecoration: "underline" },
-  { tag: tags.heading, textDecoration: "underline", fontWeight: "bold" },
-  { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.strong, fontWeight: "bold" },
-  { tag: tags.strikethrough, textDecoration: "line-through" },
-  { tag: tags.keyword, color: "#c792ea" },
-  {
-    tag: [tags.atom, tags.bool, tags.url, tags.contentSeparator, tags.labelName],
-    color: "#82aaff",
+// A shell cell's command: an inset with line numbers, 14/22 mono.
+const shellTheme = EditorView.theme({
+  ".cm-scroller": { fontFamily: "var(--font-mono)", fontSize: "14px", lineHeight: "22px" },
+  ".cm-content": { padding: "9px 0" },
+  ".cm-line": { padding: "0 16px 0 0" },
+  ".cm-gutters": { backgroundColor: "transparent", border: "none", color: "var(--color-faint)" },
+  ".cm-lineNumbers .cm-gutterElement": {
+    minWidth: "44px",
+    padding: "0 16px 0 0",
+    textAlign: "right",
   },
-  { tag: [tags.literal, tags.inserted], color: "#7fd1a4" },
-  { tag: [tags.string, tags.deleted], color: "#f78c6c" },
-  {
-    tag: [tags.regexp, tags.escape, tags.special(tags.string)],
-    color: "#ffcb6b",
-  },
-  { tag: tags.definition(tags.variableName), color: "#82aaff" },
-  { tag: tags.local(tags.variableName), color: "#b4a7f5" },
-  { tag: [tags.typeName, tags.namespace], color: "#7fd1a4" },
-  { tag: tags.className, color: "#89ddff" },
-  {
-    tag: [tags.special(tags.variableName), tags.macroName],
-    color: "#89ddff",
-  },
-  { tag: tags.definition(tags.propertyName), color: "#82aaff" },
-  { tag: tags.comment, color: "#a1a1aa" },
-  { tag: tags.invalid, color: "#ff5370" },
+});
+
+// A markdown cell while it is edited reads like the rendered prose: 16/28, the same font.
+const markdownTheme = EditorView.theme({
+  ".cm-scroller": { fontFamily: "var(--font-sans)", fontSize: "16px", lineHeight: "28px" },
+  ".cm-content": { padding: "0", color: "var(--color-body)" },
+  ".cm-line": { padding: "0" },
+});
+
+// Command colours, as in the design: commands blue, flags gold, strings green,
+// operators faint. Shell's legacy mode tags builtins and flags; other commands stay ink.
+const shellHighlight = HighlightStyle.define([
+  { tag: [tags.standard(tags.variableName), tags.keyword], color: "#8ab4f8" },
+  { tag: tags.attributeName, color: "#e5c07b" },
+  { tag: [tags.string, tags.special(tags.string)], color: "#a6d99b" },
+  { tag: [tags.definition(tags.variableName), tags.variableName], color: "#86d4e0" },
+  { tag: tags.number, color: "#e9c97a" },
+  { tag: [tags.operator, tags.punctuation], color: "var(--color-faint)" },
+  { tag: tags.comment, color: "var(--color-faint)", fontStyle: "italic" },
 ]);
 
-const editing = [
-  history(),
-  keymap.of([...defaultKeymap, ...historyKeymap]),
-  theme,
-  syntaxHighlighting(highlightStyle),
+// Markdown while editing: the structure shows in weight and colour, and the syntax
+// marks (#, **, `) are dimmed rather than hidden, as in a live preview.
+const markdownHighlight = HighlightStyle.define([
+  { tag: tags.heading, color: "var(--color-ink)", fontWeight: "650" },
+  { tag: tags.strong, color: "var(--color-ink)", fontWeight: "600" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.strikethrough, textDecoration: "line-through" },
+  {
+    tag: tags.monospace,
+    fontFamily: "var(--font-mono)",
+    fontSize: "14.5px",
+    color: "var(--color-ink)",
+  },
+  { tag: tags.link, color: "var(--color-acc)" },
+  {
+    tag: [tags.url, tags.processingInstruction, tags.contentSeparator],
+    color: "var(--color-faint)",
+  },
+  { tag: tags.quote, color: "var(--color-muted)" },
+]);
+
+const editing = [history(), keymap.of([...defaultKeymap, ...historyKeymap]), baseTheme];
+
+const shellExtensions = [
+  StreamLanguage.define(shell),
+  lineNumbers(),
+  EditorView.lineWrapping,
+  shellTheme,
+  syntaxHighlighting(shellHighlight),
 ];
 
-const shellExtensions = [StreamLanguage.define(shell)];
-
-const markdownExtensions = [markdown(), EditorView.lineWrapping];
+const markdownExtensions = [
+  markdown(),
+  EditorView.lineWrapping,
+  markdownTheme,
+  syntaxHighlighting(markdownHighlight),
+];
 
 // A shell cell's editor (SPEC §9.3): always shown, bash highlighting.
 export function shellEditor(options: EditorOptions): Attachment<HTMLElement> {
