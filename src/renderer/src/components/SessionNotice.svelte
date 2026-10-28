@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  // A notice at the top of the notebook about its shell session (SPEC §6.3, §9.3).
+  // A notice at the top of the runbook about its shell session (SPEC §6.3, §9.3).
   const {
     details,
     ondismiss,

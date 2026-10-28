@@ -63,8 +63,8 @@ function setup(overrides: Partial<RunApi> = {}) {
     calls,
     created,
     status: (cellId: string, state: RunState) =>
-      onStatus?.({ notebookPath: NB, status: { cellId, state } }),
-    output: (cellId: string, data: string) => onOutput?.({ notebookPath: NB, cellId, data }),
+      onStatus?.({ runbookPath: NB, status: { cellId, state } }),
+    output: (cellId: string, data: string) => onOutput?.({ runbookPath: NB, cellId, data }),
     state: (event: SessionStateEvent) => onState?.(event),
   };
 }
@@ -79,7 +79,7 @@ describe("run tracker: events", () => {
     expect(get(tracker.runs)[NB]?.cells["c1"]?.status?.state).toBe("success");
   });
 
-  it("creates a pane for a run that starts while its notebook isn't shown", () => {
+  it("creates a pane for a run that starts while its runbook isn't shown", () => {
     const { tracker, status } = setup();
     status("c1", "running");
     expect(tracker.existingPane(NB, "c1")).toBeDefined();
@@ -116,7 +116,7 @@ describe("run tracker: events", () => {
 
   it("keeps session states in the store", () => {
     const { tracker, state } = setup();
-    state({ notebookPath: NB, state: "dead", end: { type: "exited", exitCode: 3 } });
+    state({ runbookPath: NB, state: "dead", end: { type: "exited", exitCode: 3 } });
     expect(get(tracker.runs)[NB]).toMatchObject({ session: "dead", end: { exitCode: 3 } });
   });
 });
@@ -202,24 +202,24 @@ describe("run tracker: deleting a cell", () => {
   });
 });
 
-describe("run tracker: renaming and deleting a notebook", () => {
+describe("run tracker: renaming and deleting a runbook", () => {
   const OTHER = "/n/b.md";
 
   it("moves panes and run state to the new path", () => {
     const { tracker, status } = setup();
     status("c1", "running");
     const pane = tracker.existingPane(NB, "c1");
-    tracker.renameNotebook(NB, OTHER);
+    tracker.renameRunbook(NB, OTHER);
     expect(tracker.existingPane(OTHER, "c1")).toBe(pane);
     expect(tracker.existingPane(NB, "c1")).toBeUndefined();
     expect(get(tracker.runs)[OTHER]?.cells["c1"]?.status?.state).toBe("running");
     expect(get(tracker.runs)[NB]).toBeUndefined();
   });
 
-  it("routes events still naming the old path to the renamed notebook", () => {
+  it("routes events still naming the old path to the renamed runbook", () => {
     const { tracker, status, output } = setup();
     status("c1", "running");
-    tracker.renameNotebook(NB, OTHER);
+    tracker.renameRunbook(NB, OTHER);
     // Output main had batched under the old path before the rename.
     output("c1", "late");
     status("c1", "success");
@@ -236,7 +236,7 @@ describe("run tracker: renaming and deleting a notebook", () => {
     const done = tracker.runCell(NB, "c1", "read x");
     await vi.waitFor(() => expect(finish).toBeDefined());
     status("c1", "running");
-    tracker.renameNotebook(NB, OTHER);
+    tracker.renameRunbook(NB, OTHER);
     (tracker.existingPane(OTHER, "c1") as FakePane).callbacks.onInput("y\r");
     finish?.();
     await done;
@@ -245,21 +245,21 @@ describe("run tracker: renaming and deleting a notebook", () => {
     expect(get(tracker.runs)[NB]).toBeUndefined();
   });
 
-  it("stops routing the old path once a new notebook lives there", () => {
+  it("stops routing the old path once a new runbook lives there", () => {
     const { tracker, status } = setup();
     status("c1", "running");
-    tracker.renameNotebook(NB, OTHER);
+    tracker.renameRunbook(NB, OTHER);
     tracker.claimPath(NB);
     status("c9", "running");
     expect(tracker.existingPane(NB, "c9")).toBeDefined();
     expect(tracker.existingPane(OTHER, "c9")).toBeUndefined();
   });
 
-  it("frees a deleted notebook's panes and ignores its last events", () => {
+  it("frees a deleted runbook's panes and ignores its last events", () => {
     const { tracker, created, status, output } = setup();
     status("c1", "running");
     status("c2", "running");
-    tracker.forgetNotebook(NB);
+    tracker.forgetRunbook(NB);
     status("c1", "interrupted");
     output("c2", "late");
     expect(created.map((pane) => pane.calls.at(-1))).toEqual(["dispose", "dispose"]);

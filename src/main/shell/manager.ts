@@ -1,4 +1,4 @@
-// One ShellSession per notebook path, created on the first run (SPEC §6, §6.6).
+// One ShellSession per runbook path, created on the first run (SPEC §6, §6.6).
 
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -19,22 +19,22 @@ export interface SessionManagerOptions {
 }
 
 export interface SessionManagerEvents {
-  output: [{ notebookPath: string; cellId: string; data: string }];
-  status: [{ notebookPath: string; status: CellRunStatus }];
+  output: [{ runbookPath: string; cellId: string; data: string }];
+  status: [{ runbookPath: string; status: CellRunStatus }];
   // `end` comes with "dead" when the shell failed to start or exited on its own.
-  state: [{ notebookPath: string; state: SessionState; end?: SessionEnd }];
+  state: [{ runbookPath: string; state: SessionState; end?: SessionEnd }];
 }
 
 export class SessionManager extends EventEmitter<SessionManagerEvents> {
   private readonly sessions = new Map<string, ShellSession>();
-  // Each session's notebook path, read when forwarding its events: it changes on rename.
+  // Each session's runbook path, read when forwarding its events: it changes on rename.
   private readonly paths = new WeakMap<ShellSession, string>();
-  // The last size the renderer reported per notebook, so a new session starts at it.
+  // The last size the renderer reported per runbook, so a new session starts at it.
   private readonly sizes = new Map<string, { cols: number; rows: number }>();
   private prepared: Promise<string> | null = null;
   // Runs still waiting on prepare(), which have no session to cancel them in yet.
   private readonly preparing = new Set<{
-    notebookPath: string;
+    runbookPath: string;
     cellId: string;
     cancelled: boolean;
   }>();
@@ -44,20 +44,20 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     super();
   }
 
-  // Runs a cell in its notebook's session, starting one if there is none or the old
+  // Runs a cell in its runbook's session, starting one if there is none or the old
   // one ended. Resolves with the run's final status.
-  async run(notebookPath: string, cellId: string, source: string): Promise<CellRunStatus> {
+  async run(runbookPath: string, cellId: string, source: string): Promise<CellRunStatus> {
     if (this.disposed) throw new Error("Shell sessions are shut down");
-    const request = { notebookPath, cellId, cancelled: false };
+    const request = { runbookPath, cellId, cancelled: false };
     this.preparing.add(request);
     const tempRoot = await this.prepare().finally(() => this.preparing.delete(request));
     // dispose() may have run while we waited; a session started now would be orphaned.
     if (this.disposed) throw new Error("Shell sessions are shut down");
-    // The notebook may have been renamed while we waited.
-    const path = request.notebookPath;
+    // The runbook may have been renamed while we waited.
+    const path = request.runbookPath;
     if (request.cancelled) {
       const status: CellRunStatus = { cellId, state: "idle" };
-      this.emit("status", { notebookPath: path, status });
+      this.emit("status", { runbookPath: path, status });
       return status;
     }
     let session = this.sessions.get(path);
@@ -68,39 +68,39 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
   }
 
   // Stops the cell's run, or drops it if it is still waiting (see ShellSession.cancel).
-  cancel(notebookPath: string, cellId: string): void {
+  cancel(runbookPath: string, cellId: string): void {
     for (const request of this.preparing) {
-      if (request.notebookPath === notebookPath && request.cellId === cellId) {
+      if (request.runbookPath === runbookPath && request.cellId === cellId) {
         request.cancelled = true;
       }
     }
-    this.sessions.get(notebookPath)?.cancel(cellId);
+    this.sessions.get(runbookPath)?.cancel(cellId);
   }
 
-  sendInput(notebookPath: string, data: string): void {
-    this.sessions.get(notebookPath)?.sendInput(data);
+  sendInput(runbookPath: string, data: string): void {
+    this.sessions.get(runbookPath)?.sendInput(data);
   }
 
-  resize(notebookPath: string, cols: number, rows: number): void {
-    this.sizes.set(notebookPath, { cols, rows });
-    this.sessions.get(notebookPath)?.resize(cols, rows);
+  resize(runbookPath: string, cols: number, rows: number): void {
+    this.sizes.set(runbookPath, { cols, rows });
+    this.sessions.get(runbookPath)?.resize(cols, rows);
   }
 
-  // Kills the notebook's shell and starts a fresh one (SPEC §6.3.8). The running cell
+  // Kills the runbook's shell and starts a fresh one (SPEC §6.3.8). The running cell
   // ends interrupted and queued runs are dropped.
-  async restart(notebookPath: string): Promise<void> {
+  async restart(runbookPath: string): Promise<void> {
     if (this.disposed) throw new Error("Shell sessions are shut down");
     const tempRoot = await this.prepare();
     if (this.disposed) throw new Error("Shell sessions are shut down");
-    this.close(notebookPath);
-    this.createSession(notebookPath, tempRoot);
+    this.close(runbookPath);
+    this.createSession(runbookPath, tempRoot);
   }
 
-  // Moves the notebook's session to its new path, without restarting it (SPEC §6.6).
+  // Moves the runbook's session to its new path, without restarting it (SPEC §6.6).
   rename(from: string, to: string): void {
     if (from === to) return;
     for (const request of this.preparing) {
-      if (request.notebookPath === from) request.notebookPath = to;
+      if (request.runbookPath === from) request.runbookPath = to;
     }
     const session = this.sessions.get(from);
     if (session) {
@@ -113,11 +113,11 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     if (size) this.sizes.set(to, size);
   }
 
-  // Kills the notebook's shell, e.g. when the notebook is deleted. The next run
+  // Kills the runbook's shell, e.g. when the runbook is deleted. The next run
   // starts a new session.
-  close(notebookPath: string): void {
-    this.sessions.get(notebookPath)?.dispose();
-    this.sessions.delete(notebookPath);
+  close(runbookPath: string): void {
+    this.sessions.get(runbookPath)?.dispose();
+    this.sessions.delete(runbookPath);
   }
 
   // Kills every shell. Later runs start new sessions.
@@ -156,26 +156,26 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     return this.prepared;
   }
 
-  private createSession(notebookPath: string, tempRoot: string): ShellSession {
+  private createSession(runbookPath: string, tempRoot: string): ShellSession {
     const session = new ShellSession({
       rcfilePath: this.options.rcfilePath,
       tempRoot,
       env: this.options.env ?? buildShellEnv(process.env),
       cwd: this.options.cwd ?? homedir(),
-      ...this.sizes.get(notebookPath),
+      ...this.sizes.get(runbookPath),
       ...(this.options.shell === undefined ? {} : { shell: this.options.shell }),
       ...(this.options.readyTimeoutMs === undefined
         ? {}
         : { readyTimeoutMs: this.options.readyTimeoutMs }),
     });
-    this.paths.set(session, notebookPath);
-    const path = (): string => this.paths.get(session) ?? notebookPath;
-    session.on("output", (event) => this.emit("output", { notebookPath: path(), ...event }));
-    session.on("status", (status) => this.emit("status", { notebookPath: path(), status }));
+    this.paths.set(session, runbookPath);
+    const path = (): string => this.paths.get(session) ?? runbookPath;
+    session.on("output", (event) => this.emit("output", { runbookPath: path(), ...event }));
+    session.on("status", (status) => this.emit("status", { runbookPath: path(), status }));
     session.on("state", (state, end) =>
-      this.emit("state", { notebookPath: path(), state, ...(end === undefined ? {} : { end }) }),
+      this.emit("state", { runbookPath: path(), state, ...(end === undefined ? {} : { end }) }),
     );
-    this.sessions.set(notebookPath, session);
+    this.sessions.set(runbookPath, session);
     session.start();
     return session;
   }

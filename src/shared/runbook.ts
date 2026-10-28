@@ -1,11 +1,11 @@
-// Converts between a notebook's Markdown text and a `Notebook` (SPEC §5).
+// Converts between a runbook's Markdown text and a `Runbook` (SPEC §5).
 // Pure: no Node or Electron imports, so it runs in main, renderer and tests alike.
 
 import MarkdownIt from "markdown-it";
 import { nanoid } from "nanoid";
 import { Document, isMap, isNode, isScalar, isSeq, parseDocument } from "yaml";
 import type { Scalar } from "yaml";
-import type { Cell, CellType, Notebook } from "./types";
+import type { Cell, CellType, Runbook } from "./types";
 
 const SHELL_LANGUAGES = new Set(["bash", "sh", "shell"]);
 const DEFAULT_SHELL_INFO = "bash";
@@ -27,7 +27,7 @@ export function createCell(type: CellType, source = ""): Cell {
     : { id: newCellId(), type, source };
 }
 
-export function parse(text: string, path: string): Notebook {
+export function parse(text: string, path: string): Runbook {
   const firstBreak = text.indexOf("\n");
   const lineEnding = firstBreak > 0 && text[firstBreak - 1] === "\r" ? "\r\n" : "\n";
   // Lone CRs are normalized too, so our line numbers match markdown-it's.
@@ -53,20 +53,20 @@ export function parse(text: string, path: string): Notebook {
   };
 }
 
-export function serialize(notebook: Notebook): string {
+export function serialize(runbook: Runbook): string {
   const blocks: string[] = [];
 
-  const frontmatter = serializeFrontmatter(notebook);
+  const frontmatter = serializeFrontmatter(runbook);
   if (frontmatter !== null) {
     blocks.push(frontmatter === "" ? "---\n---" : `---\n${frontmatter}\n---`);
   }
-  for (const cell of notebook.cells) {
+  for (const cell of runbook.cells) {
     blocks.push(cell.type === "shell" ? serializeShellCell(cell) : cell.source);
   }
   if (blocks.length === 0) return "";
 
   const text = `${blocks.join("\n\n")}\n`;
-  return notebook.lineEnding === "\n" ? text : text.replaceAll("\n", notebook.lineEnding);
+  return runbook.lineEnding === "\n" ? text : text.replaceAll("\n", runbook.lineEnding);
 }
 
 // --- Cells -------------------------------------------------------------------
@@ -187,11 +187,11 @@ function scalarText(node: Scalar): string {
 }
 
 // Returns the YAML text between the --- lines, or null when no frontmatter should be written.
-function serializeFrontmatter(notebook: Notebook): string | null {
-  const { frontmatterRaw: raw, title, tags } = notebook;
+function serializeFrontmatter(runbook: Runbook): string | null {
+  const { frontmatterRaw: raw, title, tags } = runbook;
 
   if (raw === null) {
-    if (title === fileStem(notebook.path) && tags.length === 0) return null;
+    if (title === fileStem(runbook.path) && tags.length === 0) return null;
     const doc = new Document({ title, tags });
     const tagsNode = doc.get("tags", true);
     if (isSeq(tagsNode)) tagsNode.flow = true;
@@ -200,7 +200,7 @@ function serializeFrontmatter(notebook: Notebook): string | null {
 
   const doc = parseFrontmatter(raw);
   if (doc === null) return raw;
-  const original = readFrontmatter(doc, notebook.path);
+  const original = readFrontmatter(doc, runbook.path);
   const titleChanged = title !== original.title;
   const tagsChanged =
     tags.length !== original.tags.length || tags.some((tag, i) => tag !== original.tags[i]);

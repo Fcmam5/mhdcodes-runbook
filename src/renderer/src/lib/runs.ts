@@ -13,8 +13,8 @@ export const {
   runCell,
   stopCell,
   forgetCell,
-  renameNotebook: renameRuns,
-  forgetNotebook: forgetRuns,
+  renameRunbook: renameRuns,
+  forgetRunbook: forgetRuns,
   claimPath,
 } = tracker;
 

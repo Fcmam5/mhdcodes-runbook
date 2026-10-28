@@ -3,7 +3,7 @@
 // `output-collapsed` class), not display: none, because xterm can't measure its font
 // in an element that isn't rendered, and the pane's size is needed before a run starts.
 //
-// A pane outlives its cell component: while its notebook isn't shown, it is detached
+// A pane outlives its cell component: while its runbook isn't shown, it is detached
 // from the page and keeps taking output (SPEC §6.6), then is attached again on return.
 
 import { FitAddon } from "@xterm/addon-fit";

@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { NotebookIndex, snippetFor } from "../src/main/search";
-import type { Notebook } from "../src/shared/types";
+import { RunbookIndex, snippetFor } from "../src/main/search";
+import type { Runbook } from "../src/shared/types";
 
 describe("snippetFor", () => {
   it("shows the line with the first match", () => {
@@ -40,7 +40,7 @@ describe("snippetFor", () => {
   });
 });
 
-describe("NotebookIndex", () => {
+describe("RunbookIndex", () => {
   let dir: string;
 
   beforeEach(async () => {
@@ -60,11 +60,11 @@ describe("NotebookIndex", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  const paths = async (index: NotebookIndex, query: string): Promise<string[]> =>
+  const paths = async (index: RunbookIndex, query: string): Promise<string[]> =>
     (await index.search(query)).map((result) => result.path.slice(dir.length + 1));
 
-  it("finds notebooks by title, tags and cell content", async () => {
-    const index = new NotebookIndex(dir);
+  it("finds runbooks by title, tags and cell content", async () => {
+    const index = new RunbookIndex(dir);
     expect(await paths(index, "dev box")).toEqual(["devbox.md"]);
     expect(await paths(index, "sound")).toEqual(["audio.md"]);
     expect(await paths(index, "wireplumber")).toEqual(["audio.md"]);
@@ -72,14 +72,14 @@ describe("NotebookIndex", () => {
   });
 
   it("matches word prefixes and small typos, and needs every word", async () => {
-    const index = new NotebookIndex(dir);
+    const index = new RunbookIndex(dir);
     expect(await paths(index, "wirepl")).toEqual(["audio.md"]);
     expect(await paths(index, "kernal")).toEqual(["audio.md"]);
     expect(await paths(index, "kernel node")).toEqual([]);
   });
 
   it("returns a snippet and the title with each result", async () => {
-    const index = new NotebookIndex(dir);
+    const index = new RunbookIndex(dir);
     expect(await index.search("restart")).toEqual([
       {
         path: join(dir, "audio.md"),
@@ -90,11 +90,11 @@ describe("NotebookIndex", () => {
   });
 
   it("returns nothing for an empty query", async () => {
-    expect(await new NotebookIndex(dir).search("   ")).toEqual([]);
+    expect(await new RunbookIndex(dir).search("   ")).toEqual([]);
   });
 
   it("keeps a save made while it was still reading the folder", async () => {
-    const index = new NotebookIndex(dir);
+    const index = new RunbookIndex(dir);
     const first = index.search("anything");
     // Saved before the loader got to the file: the loader's copy must not win.
     index.update({
@@ -110,10 +110,10 @@ describe("NotebookIndex", () => {
     expect(await paths(index, "git")).toEqual([]);
   });
 
-  it("stays current as notebooks are saved, renamed and deleted", async () => {
-    const index = new NotebookIndex(dir);
+  it("stays current as runbooks are saved, renamed and deleted", async () => {
+    const index = new RunbookIndex(dir);
     await index.search("anything"); // loads the folder
-    const saved: Notebook = {
+    const saved: Runbook = {
       path: join(dir, "devbox.md"),
       title: "New dev box",
       tags: [],

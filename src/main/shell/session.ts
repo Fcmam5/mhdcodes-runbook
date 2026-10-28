@@ -1,4 +1,4 @@
-// One persistent bash per notebook, driven over a pty (SPEC §6). No Electron imports:
+// One persistent bash per runbook, driven over a pty (SPEC §6). No Electron imports:
 // it reports everything as events, so it is tested against real bash in plain Node.
 
 import { EventEmitter } from "node:events";

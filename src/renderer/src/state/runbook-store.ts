@@ -1,42 +1,42 @@
-// The notebooks open in the window, as a Svelte store, with autosave (SPEC §8): a
-// change is saved 500 ms after the last edit, or at once on flush (notebook switch,
-// window close). Each notebook is kept as first opened, so its cell IDs stay stable
+// The runbooks open in the window, as a Svelte store, with autosave (SPEC §8): a
+// change is saved 500 ms after the last edit, or at once on flush (runbook switch,
+// window close). Each runbook is kept as first opened, so its cell IDs stay stable
 // for the run store (see App.svelte). Pure apart from the injected save: tested in Node.
 
 import { writable, type Readable } from "svelte/store";
-import type { Notebook } from "../../../shared/types";
+import type { Runbook } from "../../../shared/types";
 
-export interface NotebookStoreOptions {
-  save: (notebook: Notebook) => Promise<void>;
+export interface RunbookStoreOptions {
+  save: (runbook: Runbook) => Promise<void>;
   delayMs?: number; // default 500
 }
 
-export interface NotebookStore extends Readable<Record<string, Notebook>> {
-  // Save errors by path, until a save of that notebook succeeds.
+export interface RunbookStore extends Readable<Record<string, Runbook>> {
+  // Save errors by path, until a save of that runbook succeeds.
   errors: Readable<Record<string, string>>;
-  // Keeps `notebook` unless one with its path is open already, and returns the kept one.
-  open(notebook: Notebook): Notebook;
-  get(path: string): Notebook | undefined;
-  edit(path: string, change: (notebook: Notebook) => Notebook): void;
-  // Saves the notebook now if it has unsaved changes. Resolves once it is saved.
+  // Keeps `runbook` unless one with its path is open already, and returns the kept one.
+  open(runbook: Runbook): Runbook;
+  get(path: string): Runbook | undefined;
+  edit(path: string, change: (runbook: Runbook) => Runbook): void;
+  // Saves the runbook now if it has unsaved changes. Resolves once it is saved.
   flush(path: string): Promise<void>;
   flushAll(): Promise<void>;
-  // Renames a notebook: saves its pending edits, holds its autosave while `perform`
+  // Renames a runbook: saves its pending edits, holds its autosave while `perform`
   // (main's rename) moves the file, then moves it to the new path, keeping its cells
   // (their IDs key the run state) and any edits made meanwhile. Resolves with the
-  // moved notebook, or the renamed one from main if it wasn't open.
-  rename(path: string, perform: () => Promise<Notebook>): Promise<Notebook>;
-  // Deletes a notebook: holds its saves, waits for one in flight (so no save can
+  // moved runbook, or the renamed one from main if it wasn't open.
+  rename(path: string, perform: () => Promise<Runbook>): Promise<Runbook>;
+  // Deletes a runbook: holds its saves, waits for one in flight (so no save can
   // recreate the file after `perform` removes it), then drops it with its unsaved
-  // edits. If `perform` fails, the notebook stays, and autosave goes on.
+  // edits. If `perform` fails, the runbook stays, and autosave goes on.
   remove(path: string, perform: () => Promise<void>): Promise<void>;
 }
 
-export function createNotebookStore({ save, delayMs = 500 }: NotebookStoreOptions): NotebookStore {
-  const notebooks = writable<Record<string, Notebook>>({});
+export function createRunbookStore({ save, delayMs = 500 }: RunbookStoreOptions): RunbookStore {
+  const runbooks = writable<Record<string, Runbook>>({});
   const errors = writable<Record<string, string>>({});
-  let current: Record<string, Notebook> = {};
-  notebooks.subscribe((value) => {
+  let current: Record<string, Runbook> = {};
+  runbooks.subscribe((value) => {
     current = value;
   });
 
@@ -56,12 +56,12 @@ export function createNotebookStore({ save, delayMs = 500 }: NotebookStoreOption
 
   async function saveNow(path: string): Promise<void> {
     await saving.get(path);
-    const notebook = current[path];
-    if (!unsaved.has(path) || !notebook || held.has(path)) return;
-    // Edits made while this save runs mark the notebook unsaved again.
+    const runbook = current[path];
+    if (!unsaved.has(path) || !runbook || held.has(path)) return;
+    // Edits made while this save runs mark the runbook unsaved again.
     unsaved.delete(path);
     try {
-      await save(notebook);
+      await save(runbook);
       setError(path, null);
     } catch (cause) {
       // Still unsaved: the next edit or flush tries again.
@@ -96,25 +96,25 @@ export function createNotebookStore({ save, delayMs = 500 }: NotebookStoreOption
     timers.delete(path);
     unsaved.delete(path);
     setError(path, null);
-    if (current[path]) notebooks.update(({ [path]: _dropped, ...rest }) => rest);
+    if (current[path]) runbooks.update(({ [path]: _dropped, ...rest }) => rest);
   }
 
   return {
-    subscribe: notebooks.subscribe,
+    subscribe: runbooks.subscribe,
     errors: { subscribe: errors.subscribe },
-    open(notebook) {
-      const kept = current[notebook.path];
+    open(runbook) {
+      const kept = current[runbook.path];
       if (kept) return kept;
-      notebooks.update((all) => ({ ...all, [notebook.path]: notebook }));
-      return notebook;
+      runbooks.update((all) => ({ ...all, [runbook.path]: runbook }));
+      return runbook;
     },
     get: (path) => current[path],
     edit(path, change) {
-      const notebook = current[path];
-      if (!notebook) return;
-      const changed = change(notebook);
-      if (changed === notebook) return;
-      notebooks.update((all) => ({ ...all, [path]: changed }));
+      const runbook = current[path];
+      if (!runbook) return;
+      const changed = change(runbook);
+      if (changed === runbook) return;
+      runbooks.update((all) => ({ ...all, [path]: changed }));
       unsaved.add(path);
       schedule(path);
     },
@@ -124,7 +124,7 @@ export function createNotebookStore({ save, delayMs = 500 }: NotebookStoreOption
       // the rename, so it can't leave those edits behind under the old name.
       await flush(path);
       held.add(path);
-      let renamed: Notebook;
+      let renamed: Runbook;
       try {
         renamed = await perform();
       } catch (cause) {
@@ -145,7 +145,7 @@ export function createNotebookStore({ save, delayMs = 500 }: NotebookStoreOption
       };
       const pending = unsaved.has(path);
       drop(path);
-      notebooks.update((all) => ({ ...all, [to]: moved }));
+      runbooks.update((all) => ({ ...all, [to]: moved }));
       if (pending) {
         unsaved.add(to);
         schedule(to);

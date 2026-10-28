@@ -9,7 +9,7 @@ export interface Cell {
   info?: string;
 }
 
-export interface Notebook {
+export interface Runbook {
   path: string; // absolute path to the .md file
   title: string; // from frontmatter, fallback = filename
   tags: string[]; // from frontmatter, default []
@@ -30,13 +30,13 @@ export interface CellRunStatus {
 
 export type SessionState = "starting" | "ready" | "busy" | "dead";
 
-// Why a session became dead on its own (SPEC §6.3.1, §6.3.7), for the notebook's notice.
+// Why a session became dead on its own (SPEC §6.3.1, §6.3.7), for the runbook's notice.
 export type SessionEnd =
   | { type: "start-failed"; output: string } // the first output, to help find the cause
   | { type: "exited"; exitCode: number };
 
-// A notebook as listed in the sidebar, without its cells.
-export interface NotebookSummary {
+// A runbook as listed in the sidebar, without its cells.
+export interface RunbookSummary {
   path: string;
   title: string;
   tags: string[];
@@ -44,12 +44,12 @@ export interface NotebookSummary {
 }
 
 export interface Settings {
-  notebooksDir: string; // absolute path
+  runbooksDir: string; // absolute path
 }
 
 // A search hit for the sidebar (SPEC §7, §9.2).
 export interface SearchResult {
   path: string;
   title: string;
-  snippet: string; // one line around the first match, or the notebook's first line
+  snippet: string; // one line around the first match, or the runbook's first line
 }

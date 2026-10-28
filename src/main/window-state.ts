@@ -78,7 +78,7 @@ export async function loadWindowState(file: string): Promise<WindowState | null>
 }
 
 // Synchronous, because it runs as the window closes and the app quits right after.
-// Atomic like notebook saves: a failed write leaves the previous state, and no temp file.
+// Atomic like runbook saves: a failed write leaves the previous state, and no temp file.
 export function saveWindowState(file: string, state: WindowState): void {
   const temp = `${file}.tmp`;
   try {

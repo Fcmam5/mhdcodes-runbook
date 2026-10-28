@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { NotebookSummary, SearchResult } from "../../../shared/types";
+  import type { RunbookSummary, SearchResult } from "../../../shared/types";
   import { runs } from "../lib/runs";
   import SessionDot from "./SessionDot.svelte";
 
   interface Props {
-    notebooks: NotebookSummary[];
+    runbooks: RunbookSummary[];
     selected: string | null;
     onselect: (path: string) => void;
     // Each resolves false if it failed (the error is shown elsewhere), so the input stays.
@@ -14,10 +14,10 @@
     onreveal: (path: string) => void;
   }
 
-  const { notebooks, selected, onselect, oncreate, onrename, ondelete, onreveal }: Props =
+  const { runbooks, selected, onselect, oncreate, onrename, ondelete, onreveal }: Props =
     $props();
 
-  // Search (SPEC §9.2): an empty query shows every notebook; otherwise the results,
+  // Search (SPEC §9.2): an empty query shows every runbook; otherwise the results,
   // each with a one-line snippet. Queries wait 150 ms after the last keystroke.
   let query = $state("");
   let results: SearchResult[] | null = $state(null);
@@ -33,7 +33,7 @@
       return;
     }
     searchTimer = setTimeout(() => {
-      window.api.searchNotebooks(text).then(
+      window.api.searchRunbooks(text).then(
         (found) => {
           // An older query answering late must not replace a newer one's results.
           if (seq === searchSeq) results = found;
@@ -90,23 +90,23 @@
   }
 
   function startRename(path: string): void {
-    const notebook = notebooks.find((summary) => summary.path === path);
-    if (!notebook) return;
-    renaming = notebook.path;
-    renameTitle = notebook.title;
+    const runbook = runbooks.find((summary) => summary.path === path);
+    if (!runbook) return;
+    renaming = runbook.path;
+    renameTitle = runbook.title;
   }
 
-  async function submitRename(notebook: NotebookSummary): Promise<void> {
+  async function submitRename(runbook: RunbookSummary): Promise<void> {
     const title = renameTitle.trim();
-    if (renaming !== notebook.path) return;
-    if (title === "" || title === notebook.title) {
+    if (renaming !== runbook.path) return;
+    if (title === "" || title === runbook.title) {
       renaming = null;
       return;
     }
     if (busy) return;
     busy = true;
     try {
-      if (await onrename(notebook.path, title)) renaming = null;
+      if (await onrename(runbook.path, title)) renaming = null;
     } finally {
       busy = false;
     }
@@ -147,7 +147,7 @@
     type="search"
     class="mb-2 rounded-md border px-3 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-blue-500 border-zinc-800 bg-zinc-900"
     placeholder="Search…"
-    aria-label="Search notebooks"
+    aria-label="Search runbooks"
     bind:this={searchInput}
     value={query}
     oninput={(event) => search(event.currentTarget.value)}
@@ -170,7 +170,7 @@
         onclick={() => onselect(result.path)}
       >
         <span class="truncate font-medium">
-          {notebooks.find((notebook) => notebook.path === result.path)?.title ?? result.title}
+          {runbooks.find((runbook) => runbook.path === result.path)?.title ?? result.title}
         </span>
         {#if result.snippet}
           <span class="truncate text-xs text-zinc-500">{result.snippet}</span>
@@ -182,8 +182,8 @@
   {:else if creating}
     <input
       class="mb-1 rounded-md border px-3 py-1.5 text-sm outline-none focus:border-blue-500 border-zinc-700 bg-zinc-900"
-      aria-label="New notebook title"
-      placeholder="Title of the new notebook"
+      aria-label="New runbook title"
+      placeholder="Title of the new runbook"
       bind:value={newTitle}
       {@attach focusAndSelect}
       onkeydown={(event) => {
@@ -208,18 +208,18 @@
   {/if}
 
   {#if !results}
-  {#each notebooks as notebook (notebook.path)}
-    {#if renaming === notebook.path}
+  {#each runbooks as runbook (runbook.path)}
+    {#if renaming === runbook.path}
       <input
         class="rounded-md border px-3 py-1.5 text-sm outline-none focus:border-blue-500 border-zinc-700 bg-zinc-900"
         aria-label="New title"
         bind:value={renameTitle}
         {@attach focusAndSelect}
         onkeydown={(event) => {
-          if (event.key === "Enter") void submitRename(notebook);
+          if (event.key === "Enter") void submitRename(runbook);
           if (event.key === "Escape") renaming = null;
         }}
-        onblur={() => void submitRename(notebook)}
+        onblur={() => void submitRename(runbook)}
       />
     {:else}
       <div class="group relative">
@@ -227,33 +227,33 @@
           type="button"
           class={[
             "flex w-full items-center gap-2 rounded-md py-1.5 pr-8 pl-3 text-left text-sm",
-            notebook.path === selected
+            runbook.path === selected
               ? "font-medium bg-zinc-800"
               : "hover:bg-zinc-900",
           ]}
-          aria-current={notebook.path === selected ? "page" : undefined}
-          title={notebook.title}
-          onclick={() => onselect(notebook.path)}
+          aria-current={runbook.path === selected ? "page" : undefined}
+          title={runbook.title}
+          onclick={() => onselect(runbook.path)}
           oncontextmenu={(event) => {
             event.preventDefault();
-            openMenu(notebook.path, event.clientX, event.clientY);
+            openMenu(runbook.path, event.clientX, event.clientY);
           }}
         >
-          <span class="min-w-0 flex-1 truncate">{notebook.title}</span>
-          <!-- Notebooks with a session show its dot, so a cell running in the background is visible. -->
-          {#if $runs[notebook.path]?.session}
-            <SessionDot state={$runs[notebook.path]?.session ?? null} compact />
+          <span class="min-w-0 flex-1 truncate">{runbook.title}</span>
+          <!-- Runbooks with a session show its dot, so a cell running in the background is visible. -->
+          {#if $runs[runbook.path]?.session}
+            <SessionDot state={$runs[runbook.path]?.session ?? null} compact />
           {/if}
         </button>
         <button
           type="button"
           class="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-sm text-zinc-500 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-zinc-700"
           title="More"
-          aria-label={`More for ${notebook.title}`}
+          aria-label={`More for ${runbook.title}`}
           aria-haspopup="menu"
           onclick={(event) => {
             const box = event.currentTarget.getBoundingClientRect();
-            openMenu(notebook.path, box.left, box.bottom + 4);
+            openMenu(runbook.path, box.left, box.bottom + 4);
           }}
         >
           ⋮

@@ -18,33 +18,33 @@ function channel<T>(name: string): (callback: (event: T) => void) => () => void 
 
 // Expose a minimal, explicit API to the renderer. Never expose ipcRenderer itself.
 const api: Api = {
-  listNotebooks: () => ipcRenderer.invoke("notebooks:list"),
-  readNotebook: (path) => ipcRenderer.invoke("notebooks:read", path),
+  listRunbooks: () => ipcRenderer.invoke("runbooks:list"),
+  readRunbook: (path) => ipcRenderer.invoke("runbooks:read", path),
   getSettings: () => ipcRenderer.invoke("settings:get"),
-  saveNotebook: (notebook) => ipcRenderer.invoke("notebooks:save", notebook),
-  createNotebook: (title) => ipcRenderer.invoke("notebooks:create", title),
-  renameNotebook: (path, newTitle) => ipcRenderer.invoke("notebooks:rename", path, newTitle),
-  deleteNotebook: (path) => ipcRenderer.invoke("notebooks:delete", path),
-  showNotebookInFolder: (path) => ipcRenderer.invoke("notebooks:reveal", path),
-  searchNotebooks: (query) => ipcRenderer.invoke("notebooks:search", query),
+  saveRunbook: (runbook) => ipcRenderer.invoke("runbooks:save", runbook),
+  createRunbook: (title) => ipcRenderer.invoke("runbooks:create", title),
+  renameRunbook: (path, newTitle) => ipcRenderer.invoke("runbooks:rename", path, newTitle),
+  deleteRunbook: (path) => ipcRenderer.invoke("runbooks:delete", path),
+  showRunbookInFolder: (path) => ipcRenderer.invoke("runbooks:reveal", path),
+  searchRunbooks: (query) => ipcRenderer.invoke("runbooks:search", query),
   // A request and reply, not a channel(): main waits for exactly one "flushed" reply,
   // sent once the callback's saves settle. Register a single handler (saveOnClose).
   onFlushRequest: (callback) => {
-    ipcRenderer.on("notebooks:flush", () => {
+    ipcRenderer.on("runbooks:flush", () => {
       // Close even if saving failed: the user would otherwise be stuck in the window.
       void callback()
         .catch(() => {})
-        .finally(() => ipcRenderer.send("notebooks:flushed"));
+        .finally(() => ipcRenderer.send("runbooks:flushed"));
     });
   },
-  runCell: (notebookPath, cellId, source) =>
-    ipcRenderer.invoke("cell:run", notebookPath, cellId, source),
-  cancelCell: (notebookPath, cellId) => ipcRenderer.invoke("cell:cancel", notebookPath, cellId),
-  sendInput: (notebookPath, data) => ipcRenderer.invoke("session:input", notebookPath, data),
-  restartSession: (notebookPath) => ipcRenderer.invoke("session:restart", notebookPath),
-  closeSession: (notebookPath) => ipcRenderer.invoke("session:close", notebookPath),
-  resizeSession: (notebookPath, cols, rows) =>
-    ipcRenderer.invoke("session:resize", notebookPath, cols, rows),
+  runCell: (runbookPath, cellId, source) =>
+    ipcRenderer.invoke("cell:run", runbookPath, cellId, source),
+  cancelCell: (runbookPath, cellId) => ipcRenderer.invoke("cell:cancel", runbookPath, cellId),
+  sendInput: (runbookPath, data) => ipcRenderer.invoke("session:input", runbookPath, data),
+  restartSession: (runbookPath) => ipcRenderer.invoke("session:restart", runbookPath),
+  closeSession: (runbookPath) => ipcRenderer.invoke("session:close", runbookPath),
+  resizeSession: (runbookPath, cols, rows) =>
+    ipcRenderer.invoke("session:resize", runbookPath, cols, rows),
   onCellOutput: channel("cell:output"),
   onCellStatus: channel("cell:status"),
   onSessionState: channel("session:state"),

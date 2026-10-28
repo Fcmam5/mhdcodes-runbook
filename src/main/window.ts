@@ -56,15 +56,15 @@ export function createWindow(saved: WindowState | null, windowStateFile: string)
       if (flushed) return;
       flushed = true;
       clearTimeout(timer);
-      ipcMain.removeListener("notebooks:flushed", onFlushed);
+      ipcMain.removeListener("runbooks:flushed", onFlushed);
       win.close();
     };
     const onFlushed = (reply: Electron.IpcMainEvent): void => {
       if (reply.sender === win.webContents) close();
     };
     const timer = setTimeout(close, 3000);
-    ipcMain.on("notebooks:flushed", onFlushed);
-    win.webContents.send("notebooks:flush");
+    ipcMain.on("runbooks:flushed", onFlushed);
+    win.webContents.send("runbooks:flush");
   });
 
   // Open http(s) links in the default browser instead of new Electron windows.

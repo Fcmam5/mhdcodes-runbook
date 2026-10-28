@@ -1,4 +1,4 @@
-// Notebook storage: the files in the notebooks folder. No Electron imports, so it is
+// Runbook storage: the files in the runbooks folder. No Electron imports, so it is
 // tested against real temp folders.
 
 import {
@@ -15,35 +15,35 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { parse, serialize } from "../shared/notebook";
-import type { Cell, Notebook, NotebookSummary } from "../shared/types";
+import { parse, serialize } from "../shared/runbook";
+import type { Cell, Runbook, RunbookSummary } from "../shared/types";
 import { isCode } from "./fs";
-import { WELCOME_FILE, WELCOME_NOTEBOOK } from "./welcome";
+import { WELCOME_FILE, WELCOME_RUNBOOK } from "./welcome";
 
-// Creates the folder if it is missing, and seeds the Welcome notebook if it is empty.
-export async function ensureNotebooksDir(dir: string): Promise<void> {
+// Creates the folder if it is missing, and seeds the Welcome runbook if it is empty.
+export async function ensureRunbooksDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
   const entries = await readdir(dir);
   if (entries.length === 0) {
     // "wx": never overwrite, in case the file appeared in the meantime.
-    await writeFile(join(dir, WELCOME_FILE), WELCOME_NOTEBOOK, { flag: "wx" });
+    await writeFile(join(dir, WELCOME_FILE), WELCOME_RUNBOOK, { flag: "wx" });
   }
 }
 
 // The .md files directly inside the folder, sorted by title. Files that can't be
 // read are left out rather than failing the whole list.
-export async function listNotebooks(dir: string): Promise<NotebookSummary[]> {
+export async function listRunbooks(dir: string): Promise<RunbookSummary[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   // Symlinks are followed; broken ones and links to folders fail the read below.
   const files = entries.filter(
     (entry) =>
       (entry.isFile() || entry.isSymbolicLink()) &&
-      isNotebookName(entry.name) &&
+      isRunbookName(entry.name) &&
       !entry.name.startsWith("."),
   );
 
   const summaries = await Promise.all(
-    files.map(async (entry): Promise<NotebookSummary | null> => {
+    files.map(async (entry): Promise<RunbookSummary | null> => {
       const path = join(dir, entry.name);
       try {
         const [text, info] = await Promise.all([readFile(path, "utf8"), stat(path)]);
@@ -60,34 +60,34 @@ export async function listNotebooks(dir: string): Promise<NotebookSummary[]> {
     .toSorted((a, b) => compareText(a.title, b.title) || compareText(a.path, b.path));
 }
 
-export async function readNotebook(dir: string, path: unknown): Promise<Notebook> {
-  const resolved = resolveNotebookPath(dir, path);
+export async function readRunbook(dir: string, path: unknown): Promise<Runbook> {
+  const resolved = resolveRunbookPath(dir, path);
   return parse(await readFile(resolved, "utf8"), resolved);
 }
 
 // Writes in progress per file (see queueWrite).
 const saving = new Map<string, Promise<void>>();
 
-// Writes the notebook to its file atomically (SPEC §8): to `<file>.tmp`, then renamed
-// over the file, so a crash mid-write never leaves a half-written notebook. The value
+// Writes the runbook to its file atomically (SPEC §8): to `<file>.tmp`, then renamed
+// over the file, so a crash mid-write never leaves a half-written runbook. The value
 // comes from the renderer, so its path and shape are checked first.
-// Resolves with the notebook as saved, for the search index.
-export async function saveNotebook(dir: string, value: unknown): Promise<Notebook> {
-  const notebook = toNotebook(value);
-  const saved = { ...notebook, path: resolveNotebookPath(dir, notebook.path) };
+// Resolves with the runbook as saved, for the search index.
+export async function saveRunbook(dir: string, value: unknown): Promise<Runbook> {
+  const runbook = toRunbook(value);
+  const saved = { ...runbook, path: resolveRunbookPath(dir, runbook.path) };
   await queueWrite(saved.path, serialize(saved));
   return saved;
 }
 
-// Creates an empty notebook named after its title (SPEC §8), never overwriting a file.
-export async function createNotebook(dir: string, title: unknown): Promise<Notebook> {
+// Creates an empty runbook named after its title (SPEC §8), never overwriting a file.
+export async function createRunbook(dir: string, title: unknown): Promise<Runbook> {
   const clean = toTitle(title);
   for (const name of await freeNames(dir, clean)) {
-    const notebook = emptyNotebook(join(resolve(dir), name), clean);
+    const runbook = emptyRunbook(join(resolve(dir), name), clean);
     try {
       // "wx": if the name was taken meanwhile, try the next one.
-      await writeFile(notebook.path, serialize(notebook), { flag: "wx" });
-      return notebook;
+      await writeFile(runbook.path, serialize(runbook), { flag: "wx" });
+      return runbook;
     } catch (error) {
       if (!isCode(error, "EEXIST")) throw error;
     }
@@ -95,16 +95,16 @@ export async function createNotebook(dir: string, title: unknown): Promise<Noteb
   throw new Error("No free file name for this title");
 }
 
-// Gives the notebook a new title and a file named after it, keeping its contents.
+// Gives the runbook a new title and a file named after it, keeping its contents.
 // Returns it as written; the caller keeps its own cells (their IDs key the run state).
-export async function renameNotebook(
+export async function renameRunbook(
   dir: string,
   path: unknown,
   newTitle: unknown,
-): Promise<Notebook> {
-  const from = resolveNotebookPath(dir, path);
+): Promise<Runbook> {
+  const from = resolveRunbookPath(dir, path);
   const title = toTitle(newTitle);
-  const notebook = parse(await readFile(from, "utf8"), from);
+  const runbook = parse(await readFile(from, "utf8"), from);
   let to = from;
   for (const name of await freeNames(dir, title, from)) {
     const candidate = join(resolve(dir), name);
@@ -115,18 +115,18 @@ export async function renameNotebook(
   }
   // Title and path change together: for a file without frontmatter, serialize()
   // compares the title with the file name.
-  const renamed = { ...notebook, path: to, title };
+  const renamed = { ...runbook, path: to, title };
   await queueWrite(to, serialize(renamed));
   return renamed;
 }
 
-// Moves the notebook to the OS trash (SPEC §7). `trash` is Electron's shell.trashItem.
-export async function deleteNotebook(
+// Moves the runbook to the OS trash (SPEC §7). `trash` is Electron's shell.trashItem.
+export async function deleteRunbook(
   dir: string,
   path: unknown,
   trash: (path: string) => Promise<void>,
 ): Promise<string> {
-  const resolved = resolveNotebookPath(dir, path);
+  const resolved = resolveRunbookPath(dir, path);
   await trash(resolved);
   return resolved;
 }
@@ -145,8 +145,8 @@ export function slugify(title: string): string {
 }
 
 // File names for a title in the order to try them: `slug.md`, `slug-2.md`, … skipping
-// names already in the folder, compared case-insensitively like listNotebooks does.
-// `own` is the notebook being renamed: its current name counts as free.
+// names already in the folder, compared case-insensitively like listRunbooks does.
+// `own` is the runbook being renamed: its current name counts as free.
 async function freeNames(dir: string, title: string, own?: string): Promise<string[]> {
   const taken = new Set(
     (await readdir(dir))
@@ -187,13 +187,13 @@ async function moveWithoutReplacing(from: string, to: string): Promise<boolean> 
   return true;
 }
 
-function emptyNotebook(path: string, title: string): Notebook {
+function emptyRunbook(path: string, title: string): Runbook {
   return { path, title, tags: [], frontmatterRaw: null, lineEnding: "\n", cells: [] };
 }
 
 function toTitle(value: unknown): string {
   const title = typeof value === "string" ? value.trim() : "";
-  if (title === "") throw new Error("A notebook needs a title");
+  if (title === "") throw new Error("A runbook needs a title");
   return title;
 }
 
@@ -228,10 +228,10 @@ async function writeAtomically(path: string, text: string): Promise<void> {
 }
 
 function fail(): never {
-  throw new Error("Invalid notebook");
+  throw new Error("Invalid runbook");
 }
 
-function toNotebook(value: unknown): Notebook {
+function toRunbook(value: unknown): Runbook {
   if (typeof value !== "object" || value === null) return fail();
   const { path, title, tags, frontmatterRaw, lineEnding, cells } = value as Record<string, unknown>;
   if (typeof path !== "string" || typeof title !== "string") return fail();
@@ -262,23 +262,23 @@ function toCell(value: unknown): Cell | null {
   return info === undefined ? { id, type, source } : { id, type, source, info };
 }
 
-// Every path from the renderer must point to a .md file inside the notebooks folder
-// (SPEC §7). Only files directly inside it count, the same ones listNotebooks shows:
+// Every path from the renderer must point to a .md file inside the runbooks folder
+// (SPEC §7). Only files directly inside it count, the same ones listRunbooks shows:
 // a deeper path could pass through a symlinked folder that leads anywhere on disk.
 // Returns the resolved path, or throws.
-export function resolveNotebookPath(dir: string, path: unknown): string {
+export function resolveRunbookPath(dir: string, path: unknown): string {
   if (typeof path !== "string" || path.includes("\0")) {
-    throw new Error("Invalid notebook path");
+    throw new Error("Invalid runbook path");
   }
   const root = resolve(dir);
   const resolved = resolve(root, path);
-  if (dirname(resolved) !== root || !isNotebookName(resolved)) {
-    throw new Error(`Not a notebook in ${root}: ${path}`);
+  if (dirname(resolved) !== root || !isRunbookName(resolved)) {
+    throw new Error(`Not a runbook in ${root}: ${path}`);
   }
   return resolved;
 }
 
-function isNotebookName(name: string): boolean {
+function isRunbookName(name: string): boolean {
   return name.toLowerCase().endsWith(".md");
 }
 

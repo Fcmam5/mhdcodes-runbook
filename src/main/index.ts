@@ -1,16 +1,16 @@
 import { join } from "node:path";
 import { app, BrowserWindow, nativeTheme } from "electron";
 import { registerIpc } from "./ipc";
-import { ensureNotebooksDir } from "./notebooks";
+import { ensureRunbooksDir } from "./runbooks";
 import { defaultSettings, loadSettings } from "./settings";
 import { SessionManager } from "./shell/manager";
 import { createWindow } from "./window";
 import { loadWindowState } from "./window-state";
 
-// Name the data folder after the app ID (~/.config/com.codiume.runbook) rather than
+// Name the data folder after the app ID (~/.config/codes.mhd.runbook) rather than
 // the generic product name. Must match appId in electron-builder.yml, and must run
 // before anything touches userData, including the single-instance lock below.
-const APP_ID = "com.codiume.runbook";
+const APP_ID = "codes.mhd.runbook";
 app.setPath("userData", join(app.getPath("appData"), APP_ID));
 
 // The app is dark only (DECISIONS.md); this also darkens native menus and dialogs.
@@ -67,8 +67,8 @@ if (!app.requestSingleInstanceLock()) {
           return defaultSettings();
         },
       );
-      await ensureNotebooksDir(settings.notebooksDir).catch((error: unknown) => {
-        console.error("Could not prepare the notebooks folder:", error);
+      await ensureRunbooksDir(settings.runbooksDir).catch((error: unknown) => {
+        console.error("Could not prepare the runbooks folder:", error);
       });
       registerIpc(settings, sessions);
 

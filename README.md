@@ -75,16 +75,16 @@ src/
 │   ├── window.ts            # The window: options, close handling, links
 │   ├── window-state.ts      # Remembered window size and position
 │   ├── ipc.ts               # IPC handlers behind `window.api`
-│   ├── notebooks.ts         # Notebook files in the notebooks folder
-│   ├── search.ts            # Full-text search over notebooks
+│   ├── runbooks.ts          # Runbook files in the runbooks folder
+│   ├── search.ts            # Full-text search over runbooks
 │   ├── settings.ts          # settings.json
-│   ├── welcome.ts           # The sample Welcome notebook
+│   ├── welcome.ts           # The sample Welcome runbook
 │   ├── fs.ts                # File-system helpers
-│   └── shell/               # One bash per notebook over node-pty (no Electron imports)
+│   └── shell/               # One bash per runbook over node-pty (no Electron imports)
 ├── preload/
 │   ├── index.ts             # Exposes a typed `window.api` via contextBridge
 │   └── api.ts               # The `Api` type (used by preload and renderer)
-├── shared/                  # Used by both processes: types, notebook format, links
+├── shared/                  # Used by both processes: types, runbook format, links
 └── renderer/
     ├── index.html           # Entry HTML with a strict Content-Security-Policy
     └── src/

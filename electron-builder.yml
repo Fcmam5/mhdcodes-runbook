@@ -1,5 +1,5 @@
 # https://www.electron.build/configuration
-appId: com.codiume.runbook
+appId: codes.mhd.runbook
 productName: Runbook
 directories:
   output: dist
@@ -21,7 +21,7 @@ linux:
     - deb
   category: Development
   syncDesktopName: true
-  maintainer: MHD <m@codiume.com>
+  maintainer: MHD
   artifactName: ${name}-${version}-${arch}.${ext}
 deb:
   # Replaces electron-builder's default list with what runbook needs. The first four cover

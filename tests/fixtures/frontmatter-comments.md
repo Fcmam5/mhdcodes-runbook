@@ -1,5 +1,5 @@
 ---
-# Notebook metadata
+# Runbook metadata
 title: "Restart networking" # quoted on purpose
 tags:
   - network

@@ -1,8 +1,8 @@
 // The API exposed to the renderer as `window.api` (SPEC §7). Type-only so both sides can share it.
 import type {
   CellRunStatus,
-  Notebook,
-  NotebookSummary,
+  Runbook,
+  RunbookSummary,
   SearchResult,
   SessionEnd,
   SessionState,
@@ -10,47 +10,47 @@ import type {
 } from "../shared/types";
 
 export interface CellOutputEvent {
-  notebookPath: string;
+  runbookPath: string;
   cellId: string;
   data: string;
 }
 
 export interface CellStatusEvent {
-  notebookPath: string;
+  runbookPath: string;
   status: CellRunStatus;
 }
 
 export interface SessionStateEvent {
-  notebookPath: string;
+  runbookPath: string;
   state: SessionState;
   end?: SessionEnd; // with "dead": why the shell died on its own
 }
 
 export interface Api {
-  listNotebooks: () => Promise<NotebookSummary[]>;
-  readNotebook: (path: string) => Promise<Notebook>;
+  listRunbooks: () => Promise<RunbookSummary[]>;
+  readRunbook: (path: string) => Promise<Runbook>;
   getSettings: () => Promise<Settings>;
-  saveNotebook: (notebook: Notebook) => Promise<void>; // atomic write
-  createNotebook: (title: string) => Promise<Notebook>; // slugified filename, unique
+  saveRunbook: (runbook: Runbook) => Promise<void>; // atomic write
+  createRunbook: (title: string) => Promise<Runbook>; // slugified filename, unique
   // Renames the file after the title and updates the title; a live session moves along.
-  renameNotebook: (path: string, newTitle: string) => Promise<Notebook>;
-  deleteNotebook: (path: string) => Promise<void>; // moves it to the OS trash
-  showNotebookInFolder: (path: string) => Promise<void>;
-  searchNotebooks: (query: string) => Promise<SearchResult[]>; // { path, title, snippet }
+  renameRunbook: (path: string, newTitle: string) => Promise<Runbook>;
+  deleteRunbook: (path: string) => Promise<void>; // moves it to the OS trash
+  showRunbookInFolder: (path: string) => Promise<void>;
+  searchRunbooks: (query: string) => Promise<SearchResult[]>; // { path, title, snippet }
   // Runs the callback when the window is about to close, then lets it close.
   onFlushRequest: (callback: () => Promise<void>) => void;
 
-  // Starts the notebook's session if needed; resolves when the run ends.
-  runCell: (notebookPath: string, cellId: string, source: string) => Promise<void>;
+  // Starts the runbook's session if needed; resolves when the run ends.
+  runCell: (runbookPath: string, cellId: string, source: string) => Promise<void>;
   // Stops the cell's run, or drops it from the queue.
-  cancelCell: (notebookPath: string, cellId: string) => Promise<void>;
+  cancelCell: (runbookPath: string, cellId: string) => Promise<void>;
   // Keystrokes for the running cell; ignored when nothing is running.
-  sendInput: (notebookPath: string, data: string) => Promise<void>;
-  resizeSession: (notebookPath: string, cols: number, rows: number) => Promise<void>;
+  sendInput: (runbookPath: string, data: string) => Promise<void>;
+  resizeSession: (runbookPath: string, cols: number, rows: number) => Promise<void>;
   // Kills the shell and starts a fresh one; the running cell ends interrupted.
-  restartSession: (notebookPath: string) => Promise<void>;
+  restartSession: (runbookPath: string) => Promise<void>;
   // Kills the shell; the next run starts a new one.
-  closeSession: (notebookPath: string) => Promise<void>;
+  closeSession: (runbookPath: string) => Promise<void>;
 
   // Each returns an unsubscribe function.
   onCellOutput: (callback: (event: CellOutputEvent) => void) => () => void;

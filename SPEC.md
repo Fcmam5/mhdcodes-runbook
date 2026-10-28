@@ -8,9 +8,9 @@
 
 ## 1. Product summary
 
-A Linux desktop app (Electron, targeting Ubuntu 24.04+) for writing **executable runbooks**: notebooks that mix markdown explanations with shell command cells. Each notebook has **one persistent shell session**, so `cd`, `export`, sourced virtualenvs, etc. carry over between cells, exactly like typing them in a terminal one after another. Output streams live into a real terminal emulator under each cell.
+A Linux desktop app (Electron, targeting Ubuntu 24.04+) for writing **executable runbooks**: runbooks that mix markdown explanations with shell command cells. Each runbook has **one persistent shell session**, so `cd`, `export`, sourced virtualenvs, etc. carry over between cells, exactly like typing them in a terminal one after another. Output streams live into a real terminal emulator under each cell.
 
-Notebooks are stored as **plain Markdown files** with fenced code blocks, so they stay readable in any editor and diff cleanly in git.
+Runbooks are stored as **plain Markdown files** with fenced code blocks, so they stay readable in any editor and diff cleanly in git.
 
 ### Target user
 
@@ -22,22 +22,22 @@ A developer or Linux power user who keeps re-Googling the same fixes and setup s
 
 ### In scope (MVP)
 
-1. Notebook editor with two cell types: **Markdown** and **Shell**.
+1. Runbook editor with two cell types: **Markdown** and **Shell**.
 2. Add, edit, and delete cells.
-3. Run a shell cell in a persistent per-notebook bash session (via `node-pty`), with live, colored output rendered by `xterm.js`. Sessions stay alive when switching notebooks (§6.6).
+3. Run a shell cell in a persistent per-runbook bash session (via `node-pty`), with live, colored output rendered by `xterm.js`. Sessions stay alive when switching runbooks (§6.6).
 4. Interactive input into a running cell (e.g. `sudo` password prompts, `[Y/n]` questions).
 5. Stop a running cell (send Ctrl+C).
 6. Show each cell's last run status: running / succeeded (exit 0) / failed (non-zero, with code) / interrupted.
-7. Restart a notebook's shell session.
-8. Store notebooks as `.md` files in a notebooks folder; autosave.
-9. Sidebar listing all notebooks, with create / rename / delete and full-text search.
-10. Minimal settings: the notebooks folder location, read from `settings.json` (there is no settings UI).
+7. Restart a runbook's shell session.
+8. Store runbooks as `.md` files in a runbooks folder; autosave.
+9. Sidebar listing all runbooks, with create / rename / delete and full-text search.
+10. Minimal settings: the runbooks folder location, read from `settings.json` (there is no settings UI).
 11. Keyboard shortcuts (§9.5).
 12. Packaging as `.deb` and AppImage (Linux only).
 
 ### Out of scope (do NOT build yet)
 
-Planned for v2: reordering cells (drag and drop, move up/down), a settings UI with a notebooks folder picker, and picking up changes made to notebook files outside the app.
+Planned for v2: reordering cells (drag and drop, move up/down), a settings UI with a runbooks folder picker, and picking up changes made to runbook files outside the app.
 
 Also out of scope: input/variable cells, check cells, run history persistence (SQLite), "run all", danger-command detection, terminal capture mode, templates, AI features, SSH/remote targets, scheduling, shells other than bash, Windows/macOS support (including macOS build targets), cloud sync, multiple windows, tabs. Leave clean extension points, but no stub UI for these.
 
@@ -60,7 +60,7 @@ Use the latest **stable** versions at the time of scaffolding (no betas). Versio
 | Markdown rendering    | `markdown-it` 15 with `html: false` (no raw HTML)                                     |
 | Frontmatter           | `yaml` 2 (Document API, so comments and formatting survive edits)                     |
 | IDs                   | `nanoid` (8-char, URL-safe)                                                           |
-| Search                | In-memory search over loaded notebooks (`minisearch`)                                 |
+| Search                | In-memory search over loaded runbooks (`minisearch`)                                  |
 | Tests                 | `vitest` 5                                                                            |
 | Packaging             | `electron-builder` (targets: `deb`, `AppImage`)                                       |
 
@@ -82,7 +82,7 @@ export interface Cell {
   //                e.g. "bash", "sh", "shell title=x". New cells use "bash".
 }
 
-export interface Notebook {
+export interface Runbook {
   path: string; // absolute path to .md file
   title: string; // from frontmatter, fallback = filename
   tags: string[]; // from frontmatter, default []
@@ -110,7 +110,7 @@ Run status and output are **in memory only** for the MVP (lost on app restart).
 
 ## 5. File format
 
-A notebook is a UTF-8 `.md` file:
+A runbook is a UTF-8 `.md` file:
 
 ````markdown
 ---
@@ -133,7 +133,7 @@ pactl list short sinks
 
 Saving should change as little of the file as possible: the format's promise is that files stay readable and diff cleanly in git.
 
-### Parsing rules (`parse(text, path): Notebook`)
+### Parsing rules (`parse(text, path): Runbook`)
 
 1. Optional YAML frontmatter at the very top between `---` lines. `title` and `tags` map to fields. Keep the original YAML text in `frontmatterRaw`; other keys are not parsed into the model and survive saves through it.
 2. A **shell cell** is a fenced code block whose info string language is `bash`, `sh`, or `shell`. Accept both ``` and ~~~ fences, with fence length ≥ 3, matching the opening fence's character and length for the close.
@@ -144,14 +144,14 @@ Saving should change as little of the file as possible: the format's promise is 
 7. An unclosed shell fence: treat the rest of the file as that cell's content (don't throw).
 8. Detect the line ending from the file (`\r\n` if its first line break is CRLF, else `\n`). Cell sources are held with `\n` internally.
 
-### Serialization rules (`serialize(notebook): string`)
+### Serialization rules (`serialize(runbook): string`)
 
 1. **Frontmatter:**
    - If the file had frontmatter, write it back from `frontmatterRaw`. If `title` or `tags` changed, apply the changes with the `yaml` Document API so comments, key order, styles (e.g. flow lists `[a, b]`) and other keys survive untouched.
    - If the file had no frontmatter, write one only if `title` differs from the filename (without `.md`) or `tags` is non-empty. Write `title`, then `tags`.
 2. Cells are separated by exactly one blank line.
 3. Shell cells are written as ` ```<info> {id=<id>} `, using the cell's original `info` (e.g. `sh`, `bash title=x`). If the source itself contains a line starting with ` ``` `, use a longer fence (e.g. ` ```` `). If `info` contains a backtick, use a `~~~` fence instead, since backtick fences can't.
-4. Lines end with the notebook's `lineEnding`.
+4. Lines end with the runbook's `lineEnding`.
 5. File ends with a single trailing line ending.
 
 ### Round-trip requirement
@@ -162,7 +162,7 @@ Saving should change as little of the file as possible: the format's promise is 
 
 ## 6. Shell session design (the critical part)
 
-One `ShellSession` per notebook, created lazily on the first run. See §6.6 for its lifetime.
+One `ShellSession` per runbook, created lazily on the first run. See §6.6 for its lifetime.
 
 ### 6.1 Spawning
 
@@ -260,7 +260,7 @@ Why this shape (verified against real bash under a pty):
 4. **One cell at a time per session.** If a run is requested while busy, queue it (state `queued`) and run it in FIFO order. Cancelling a queued cell removes it from the queue.
 5. **Stop:** write `\x03` to the pty, once `rb-start` has arrived (before it, bash may not have read the run line, and Ctrl+C would discard it). When the subsequent `rb-done` arrives with code 130 (or any code after a stop was requested), set state `interrupted`; code 130 also means `interrupted` when Ctrl+C was typed into the pane. A Ctrl+C sent just as a command starts can reach bash instead of the command and be lost, so a stop within 1 s of the run's start is sent once more after 500 ms if the run is still going. Later stops send a single Ctrl+C: to many programs a second one means "skip the clean shutdown". Because echo is on during a run, the output shows `^C` before the marker, as in a terminal.
 6. **User input:** while a cell is running, keystrokes from its xterm instance (`onData`) are written to the pty. Input from non-running cells' terminals is ignored. Input the cell never reads is discarded when the run ends (§6.2).
-7. **Session death:** if the pty exits (e.g. a cell ran `exit`, or a command failed under `set -e`), mark the running cell `failed` with the shell's exit status as `exitCode`, mark the session `dead`, and reject queued runs. The next run request transparently spawns a fresh session. Show a notice in the notebook: "Shell session ended (exit N). A `set -e` or `exit` in a cell ends the session. Next run will start a new session."
+7. **Session death:** if the pty exits (e.g. a cell ran `exit`, or a command failed under `set -e`), mark the running cell `failed` with the shell's exit status as `exitCode`, mark the session `dead`, and reject queued runs. The next run request transparently spawns a fresh session. Show a notice in the runbook: "Shell session ended (exit N). A `set -e` or `exit` in a cell ends the session. Next run will start a new session."
 8. **Restart session:** kill the pty and spawn a new one; clear the queue; mark any running cell `interrupted`.
 9. On app quit, kill all ptys and remove the temp directory.
 
@@ -280,9 +280,9 @@ Why this shape (verified against real bash under a pty):
 
 ### 6.6 Session lifetime
 
-- Sessions are keyed by notebook path and **stay alive when switching notebooks**: running cells keep running in the background. The renderer keeps each visited notebook's per-cell output (xterm buffers, capped by the 5000-line scrollback) and run statuses in memory, so switching back shows everything as it was.
-- A session ends only on: restart (§6.3.8), the shell exiting (§6.3.7), deleting the notebook, or app quit.
-- Renaming a notebook moves its session to the new path without restarting it.
+- Sessions are keyed by runbook path and **stay alive when switching runbooks**: running cells keep running in the background. The renderer keeps each visited runbook's per-cell output (xterm buffers, capped by the 5000-line scrollback) and run statuses in memory, so switching back shows everything as it was.
+- A session ends only on: restart (§6.3.8), the shell exiting (§6.3.7), deleting the runbook, or app quit.
+- Renaming a runbook moves its session to the new path without restarting it.
 
 ---
 
@@ -293,34 +293,34 @@ Renderer ↔ main communicate only through a typed `window.api` exposed by the p
 ```ts
 // Requests (ipcRenderer.invoke / ipcMain.handle)
 interface Api {
-  // notebooks
-  listNotebooks(): Promise<NotebookSummary[]>; // { path, title, tags, mtime }
-  readNotebook(path: string): Promise<Notebook>;
-  saveNotebook(nb: Notebook): Promise<void>; // atomic write
-  createNotebook(title: string): Promise<Notebook>; // slugified filename, unique
-  renameNotebook(path: string, newTitle: string): Promise<Notebook>; // renames file + title
-  deleteNotebook(path: string): Promise<void>; // moves to OS trash via shell.trashItem
-  showNotebookInFolder(path: string): Promise<void>; // shell.showItemInFolder
-  searchNotebooks(query: string): Promise<SearchResult[]>; // { path, title, snippet }
+  // runbooks
+  listRunbooks(): Promise<RunbookSummary[]>; // { path, title, tags, mtime }
+  readRunbook(path: string): Promise<Runbook>;
+  saveRunbook(nb: Runbook): Promise<void>; // atomic write
+  createRunbook(title: string): Promise<Runbook>; // slugified filename, unique
+  renameRunbook(path: string, newTitle: string): Promise<Runbook>; // renames file + title
+  deleteRunbook(path: string): Promise<void>; // moves to OS trash via shell.trashItem
+  showRunbookInFolder(path: string): Promise<void>; // shell.showItemInFolder
+  searchRunbooks(query: string): Promise<SearchResult[]>; // { path, title, snippet }
 
   // execution
-  runCell(notebookPath: string, cellId: string, source: string): Promise<void>;
-  cancelCell(notebookPath: string, cellId: string): Promise<void>; // stop or dequeue
-  sendInput(notebookPath: string, data: string): Promise<void>;
-  resizeSession(notebookPath: string, cols: number, rows: number): Promise<void>;
-  restartSession(notebookPath: string): Promise<void>;
-  closeSession(notebookPath: string): Promise<void>;
+  runCell(runbookPath: string, cellId: string, source: string): Promise<void>;
+  cancelCell(runbookPath: string, cellId: string): Promise<void>; // stop or dequeue
+  sendInput(runbookPath: string, data: string): Promise<void>;
+  resizeSession(runbookPath: string, cols: number, rows: number): Promise<void>;
+  restartSession(runbookPath: string): Promise<void>;
+  closeSession(runbookPath: string): Promise<void>;
 
   // settings
-  getSettings(): Promise<Settings>; // { notebooksDir }
+  getSettings(): Promise<Settings>; // { runbooksDir }
 
   // events (main -> renderer); each returns an unsubscribe function
-  onCellOutput(cb: (e: { notebookPath: string; cellId: string; data: string }) => void): () => void;
-  onCellStatus(cb: (e: { notebookPath: string; status: CellRunStatus }) => void): () => void;
+  onCellOutput(cb: (e: { runbookPath: string; cellId: string; data: string }) => void): () => void;
+  onCellStatus(cb: (e: { runbookPath: string; status: CellRunStatus }) => void): () => void;
   // `end` comes with "dead" when the shell failed to start or exited on its own (not on
   // restart, close or quit), and drives the notices in §6.3.
   onSessionState(
-    cb: (e: { notebookPath: string; state: SessionState; end?: SessionEnd }) => void,
+    cb: (e: { runbookPath: string; state: SessionState; end?: SessionEnd }) => void,
   ): () => void;
 
   // window close: main holds the close until the callback (which saves pending edits,
@@ -333,16 +333,16 @@ type SessionEnd =
   | { type: "exited"; exitCode: number };
 ```
 
-All main-process handlers must validate that any `path` argument resolves to a file directly inside the configured notebooks folder (use `path.resolve` and compare its `dirname` with the folder) and ends in `.md`. Reject anything else. Subfolders are not allowed: a symlinked subfolder could lead anywhere on disk.
+All main-process handlers must validate that any `path` argument resolves to a file directly inside the configured runbooks folder (use `path.resolve` and compare its `dirname` with the folder) and ends in `.md`. Reject anything else. Subfolders are not allowed: a symlinked subfolder could lead anywhere on disk.
 
 ---
 
 ## 8. Storage & settings
 
-- Default notebooks folder: `~/Runbooks` (create it on first launch if missing).
-- Settings live in `app.getPath('userData')/settings.json`. `userData` is named after the app ID, not the product name: `~/.config/com.codiume.runbook`.
-- On first launch, if the folder is empty, create one sample notebook (`Welcome.md`) demonstrating markdown cells, a `cd` + `pwd` persistence example, and an `echo` with colors.
-- **Autosave:** debounce 500 ms after the last edit; also save on notebook switch and window close. Writes are atomic: write `<file>.tmp`, then `fs.rename`.
+- Default runbooks folder: `~/Runbooks` (create it on first launch if missing).
+- Settings live in `app.getPath('userData')/settings.json`. `userData` is named after the app ID, not the product name: `~/.config/codes.mhd.runbook`.
+- On first launch, if the folder is empty, create one sample runbook (`Welcome.md`) demonstrating markdown cells, a `cd` + `pwd` persistence example, and an `echo` with colors.
+- **Autosave:** debounce 500 ms after the last edit; also save on runbook switch and window close. Writes are atomic: write `<file>.tmp`, then `fs.rename`.
 - Filenames: slugify the title (`Fix audio after update` → `fix-audio-after-update.md`), adding `-2`, `-3`, etc. on collision.
 
 ---
@@ -371,22 +371,22 @@ All main-process handlers must validate that any `path` argument resolves to a f
 
 ### 9.2 Sidebar
 
-- Search box at the top; empty query shows all notebooks sorted by title. A non-empty query shows results with a one-line snippet.
-- "+ New" opens an inline title input and then opens the new notebook.
+- Search box at the top; empty query shows all runbooks sorted by title. A non-empty query shows results with a one-line snippet.
+- "+ New" opens an inline title input and then opens the new runbook.
 - Right-click (or ⋮) on an item: Rename, Delete (with confirm dialog), Show in folder.
-- Notebooks with a live session show the session dot (same colours as the header), so a cell still running in the background is visible.
+- Runbooks with a live session show the session dot (same colours as the header), so a cell still running in the background is visible.
 
-### 9.3 Notebook view
+### 9.3 Runbook view
 
-- Header: editable title (click to edit; the title names the file, so editing it renames the notebook like the sidebar's Rename, §8), tags (comma-separated inline editor), session indicator dot (grey = no session, green = ready, amber = busy, red = dead) with a "Restart session" action.
+- Header: editable title (click to edit; the title names the file, so editing it renames the runbook like the sidebar's Rename, §8), tags (comma-separated inline editor), session indicator dot (grey = no session, green = ready, amber = busy, red = dead) with a "Restart session" action.
 - Cells in a vertical list, with an "add cell below" control between cells that shows on hover.
 - **Markdown cell:** rendered by default. Click or Enter (when focused) switches to a CodeMirror editor; Esc or clicking outside renders it again.
 - **Links in rendered markdown:** `http:` and `https:` links open in the system browser. All other schemes (`file:`, `javascript:`, relative paths) do nothing.
 - **Shell cell:** always shows a CodeMirror editor (bash highlighting, monospace). Toolbar: Run ▶ (becomes Stop ■ while running or queued), and a menu ⋮ with "Clear output" and "Delete cell".
 - **Status line** under a shell cell after its first run: spinner + "running…", "queued", "✓ exit 0 · 1.2s", "✗ exit 2 · 0.3s", or "■ interrupted".
 - **Output pane:** an xterm.js instance created on first run of that cell. Auto-height up to 400 px, then it scrolls (scrollback 5000 lines). Each new run clears the previous output. Clicking into the pane while the cell runs focuses it for typing input. When a running cell prints output and the keyboard focus is free (on nothing, or still on that cell's Run/Stop button), the pane takes focus by itself, so a prompt like `sudo`'s password can be answered without a click; focus the user has put elsewhere is never taken. Hide the pane if output is empty.
-- **Session notices** (shell didn't start, session ended) appear at the top of the notebook view (§6.3).
-- Empty notebook state: "This runbook is empty" with "+ Markdown" and "+ Shell" buttons.
+- **Session notices** (shell didn't start, session ended) appear at the top of the runbook view (§6.3).
+- Empty runbook state: "This runbook is empty" with "+ Markdown" and "+ Shell" buttons.
 
 ### 9.4 Look & feel
 
@@ -405,7 +405,7 @@ All main-process handlers must validate that any `path` argument resolves to a f
 | `Enter`                | Edit the focused markdown cell                             |
 | `Esc`                  | Leave the cell editor or the output pane                   |
 | `Ctrl+Shift+Backspace` | Delete the focused cell                                    |
-| `Ctrl+N`               | New notebook                                               |
+| `Ctrl+N`               | New runbook                                                |
 | `Ctrl+K`               | Focus search                                               |
 
 `Ctrl+C` inside a running cell's output pane always goes to the shell (it is not a copy shortcut there).
@@ -423,7 +423,7 @@ The scaffolding is already Linux-only: `electron-builder.yml` targets `deb` and 
 - Add `vitest`, a `"test": "vitest run"` script, include it in `pnpm check`, and run it in `ci.yml`.
 - ✅ `pnpm check` passes; `pnpm dist --linux` still builds the `.deb` and AppImage.
 
-### M1 — Notebook format & storage
+### M1 — Runbook format & storage
 
 - Implement `parse` / `serialize` (§5) with fixtures in `tests/fixtures/`: frontmatter variants (including comments and flow lists), no frontmatter, missing IDs, nested fences, non-bash code blocks, `sh`/`shell` fences and extra info-string attributes, fences inside lists and blockquotes, unclosed fence, CRLF line endings, empty file.
 - Implement `storage.ts` and `settings.ts` (§8).
@@ -449,11 +449,11 @@ The scaffolding is already Linux-only: `electron-builder.yml` targets `deb` and 
   - `buildShellEnv` unit tests: Electron/dev variables removed; AppImage variables and path entries stripped; unrelated variables untouched.
 - ✅ All session tests pass reliably (run the suite 5 times locally without flakes, e.g. `vitest run --repeats 4`).
 
-### M3 — Notebook UI
+### M3 — Runbook UI
 
-- Notebook view with markdown and shell cells, editing, add/delete, run/stop, status line, xterm output, input to running cell, autosave (§9). Sessions and output survive switching notebooks (§6.6).
+- Runbook view with markdown and shell cells, editing, add/delete, run/stop, status line, xterm output, input to running cell, autosave (§9). Sessions and output survive switching runbooks (§6.6).
 - Wire everything through the preload API (§7).
-- ✅ Manual check: open the Welcome notebook, run the `cd`/`pwd` example and see persistence; run `sudo -v` and type a password into the output pane; start `sleep 30` in one notebook, switch to another and back, and see it still running.
+- ✅ Manual check: open the Welcome runbook, run the `cd`/`pwd` example and see persistence; run `sudo -v` and type a password into the output pane; start `sleep 30` in one runbook, switch to another and back, and see it still running.
 
 ### M4 — Sidebar, search, shortcuts
 
@@ -464,7 +464,7 @@ The scaffolding is already Linux-only: `electron-builder.yml` targets `deb` and 
 
 ## 11. Notes for the implementer (Claude Code)
 
-- Keep `src/shared/notebook.ts` pure (no Node or Electron imports) so it's trivially testable. `markdown-it`'s token stream (fence tokens with `level` and line `map`) is a convenient way to find top-level fences (§5 rule 3).
+- Keep `src/shared/runbook.ts` pure (no Node or Electron imports) so it's trivially testable. `markdown-it`'s token stream (fence tokens with `level` and line `map`) is a convenient way to find top-level fences (§5 rule 3).
 - Keep `ShellSession` free of Electron imports; it emits events (`output`, `status`, `state`) that `ipc.ts` forwards to the renderer. This keeps it testable in plain Node.
 - Batch output events: coalesce pty data and forward to the renderer at most every ~16 ms per cell to avoid flooding IPC on noisy commands.
 - **`node-pty` is a native module:**

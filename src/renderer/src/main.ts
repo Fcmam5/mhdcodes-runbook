@@ -1,11 +1,11 @@
 import { mount } from "svelte";
 import { externalUrl } from "../../shared/links";
 import App from "./App.svelte";
-import { saveOnClose } from "./lib/notebooks";
+import { saveOnClose } from "./lib/runbooks";
 import { trackRuns } from "./lib/runs";
 import "./app.css";
 
-// Before anything can run: run events must reach the store whichever notebook is shown.
+// Before anything can run: run events must reach the store whichever runbook is shown.
 trackRuns();
 saveOnClose();
 

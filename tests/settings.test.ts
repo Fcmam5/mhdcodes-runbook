@@ -18,26 +18,26 @@ afterEach(async () => {
 });
 
 describe("loadSettings", () => {
-  it("defaults notebooksDir to ~/Runbooks and writes settings.json", async () => {
-    expect(await loadSettings(file)).toEqual({ notebooksDir: DEFAULT_DIR });
-    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ notebooksDir: DEFAULT_DIR });
+  it("defaults runbooksDir to ~/Runbooks and writes settings.json", async () => {
+    expect(await loadSettings(file)).toEqual({ runbooksDir: DEFAULT_DIR });
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ runbooksDir: DEFAULT_DIR });
   });
 
-  it("reads a stored notebooksDir", async () => {
+  it("reads a stored runbooksDir", async () => {
     await loadSettings(file);
-    await writeFile(file, JSON.stringify({ notebooksDir: "/srv/runbooks" }));
-    expect(await loadSettings(file)).toEqual({ notebooksDir: "/srv/runbooks" });
+    await writeFile(file, JSON.stringify({ runbooksDir: "/srv/runbooks" }));
+    expect(await loadSettings(file)).toEqual({ runbooksDir: "/srv/runbooks" });
   });
 
   it.each([
     ["broken JSON", "{ nope"],
     ["a non-object", "[]"],
-    ["a relative folder", JSON.stringify({ notebooksDir: "Runbooks" })],
-    ["a non-string folder", JSON.stringify({ notebooksDir: 7 })],
+    ["a relative folder", JSON.stringify({ runbooksDir: "Runbooks" })],
+    ["a non-string folder", JSON.stringify({ runbooksDir: 7 })],
   ])("falls back to the default for %s and leaves the file alone", async (_reason, text) => {
     await loadSettings(file);
     await writeFile(file, text);
-    expect(await loadSettings(file)).toEqual({ notebooksDir: DEFAULT_DIR });
+    expect(await loadSettings(file)).toEqual({ runbooksDir: DEFAULT_DIR });
     expect(await readFile(file, "utf8")).toBe(text);
   });
 });

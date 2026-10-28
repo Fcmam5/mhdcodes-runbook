@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { createRunStore, isActive, NO_CELL_RUN } from "../src/renderer/src/state/run-store";
 
 describe("run store", () => {
-  it("keeps statuses per notebook and cell", () => {
+  it("keeps statuses per runbook and cell", () => {
     const runs = createRunStore();
-    runs.onStatus({ notebookPath: "/a.md", status: { cellId: "c1", state: "running" } });
-    runs.onStatus({ notebookPath: "/b.md", status: { cellId: "c1", state: "queued" } });
+    runs.onStatus({ runbookPath: "/a.md", status: { cellId: "c1", state: "running" } });
+    runs.onStatus({ runbookPath: "/b.md", status: { cellId: "c1", state: "queued" } });
     runs.onStatus({
-      notebookPath: "/a.md",
+      runbookPath: "/a.md",
       status: { cellId: "c1", state: "success", exitCode: 0 },
     });
     const all = get(runs);
@@ -22,10 +22,10 @@ describe("run store", () => {
 
   it("tracks the session state and why it died, until a new one starts", () => {
     const runs = createRunStore();
-    runs.onSessionState({ notebookPath: "/a.md", state: "starting" });
-    runs.onSessionState({ notebookPath: "/a.md", state: "ready" });
+    runs.onSessionState({ runbookPath: "/a.md", state: "starting" });
+    runs.onSessionState({ runbookPath: "/a.md", state: "ready" });
     runs.onSessionState({
-      notebookPath: "/a.md",
+      runbookPath: "/a.md",
       state: "dead",
       end: { type: "exited", exitCode: 3 },
     });
@@ -33,18 +33,18 @@ describe("run store", () => {
       session: "dead",
       end: { type: "exited", exitCode: 3 },
     });
-    runs.onSessionState({ notebookPath: "/a.md", state: "starting" });
+    runs.onSessionState({ runbookPath: "/a.md", state: "starting" });
     expect(get(runs)["/a.md"]).toMatchObject({ session: "starting", end: null });
   });
 
   it("keeps a notice through later states until dismissed", () => {
     const runs = createRunStore();
     runs.onSessionState({
-      notebookPath: "/a.md",
+      runbookPath: "/a.md",
       state: "dead",
       end: { type: "start-failed", output: "oops" },
     });
-    runs.onSessionState({ notebookPath: "/a.md", state: "dead" });
+    runs.onSessionState({ runbookPath: "/a.md", state: "dead" });
     expect(get(runs)["/a.md"]?.end).toEqual({ type: "start-failed", output: "oops" });
     runs.dismissEnd("/a.md");
     expect(get(runs)["/a.md"]?.end).toBeNull();
@@ -53,7 +53,7 @@ describe("run store", () => {
   it("keeps a cell's request flag and error next to its status", () => {
     const runs = createRunStore();
     runs.setRequested("/a.md", "c1", true);
-    runs.onStatus({ notebookPath: "/a.md", status: { cellId: "c1", state: "running" } });
+    runs.onStatus({ runbookPath: "/a.md", status: { cellId: "c1", state: "running" } });
     runs.setError("/a.md", "c1", "Shell didn't start");
     expect(get(runs)["/a.md"]?.cells["c1"]).toEqual({
       status: { cellId: "c1", state: "running" },
@@ -64,8 +64,8 @@ describe("run store", () => {
 
   it("drops a deleted cell's entry and keeps the others", () => {
     const runs = createRunStore();
-    runs.onStatus({ notebookPath: "/a.md", status: { cellId: "c1", state: "success" } });
-    runs.onStatus({ notebookPath: "/a.md", status: { cellId: "c2", state: "failed" } });
+    runs.onStatus({ runbookPath: "/a.md", status: { cellId: "c1", state: "success" } });
+    runs.onStatus({ runbookPath: "/a.md", status: { cellId: "c2", state: "failed" } });
     runs.forgetCell("/a.md", "c1");
     expect(Object.keys(get(runs)["/a.md"]?.cells ?? {})).toEqual(["c2"]);
   });

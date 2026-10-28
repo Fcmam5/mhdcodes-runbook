@@ -9,7 +9,7 @@
   import CellMenu from "./CellMenu.svelte";
 
   interface Props {
-    notebookPath: string;
+    runbookPath: string;
     cell: Cell;
     autofocus?: boolean; // a new cell's editor takes the focus
     onchange: (source: string) => void;
@@ -17,7 +17,7 @@
     onfocusnext: () => void; // Shift+Enter moves on to the next cell
   }
 
-  const { notebookPath, cell, autofocus = false, onchange, ondelete, onfocusnext }: Props =
+  const { runbookPath, cell, autofocus = false, onchange, ondelete, onfocusnext }: Props =
     $props();
 
   // Created once: it owns its document and reports edits, which come back as cell.source.
@@ -39,8 +39,8 @@
   let runButton: HTMLButtonElement | undefined = $state();
   let paneSlot: HTMLElement | null = null;
 
-  // Lives in the run store, so it survives switching notebooks (SPEC §6.6).
-  const run = $derived($runs[notebookPath]?.cells[cell.id] ?? NO_CELL_RUN);
+  // Lives in the run store, so it survives switching runbooks (SPEC §6.6).
+  const run = $derived($runs[runbookPath]?.cells[cell.id] ?? NO_CELL_RUN);
   const line = $derived(run.status ? statusLine(run.status) : null);
   const active = $derived(isActive(run));
 
@@ -48,9 +48,9 @@
     if (!paneSlot) return;
     // Created on the cell's first run, and attached before the run so the shell can
     // be sized to it.
-    paneFor(notebookPath, cell.id).attach(paneSlot, runButton ?? null);
+    paneFor(runbookPath, cell.id).attach(paneSlot, runButton ?? null);
     // The editor's current contents: every edit has already reached cell.source.
-    void runCell(notebookPath, cell.id, cell.source);
+    void runCell(runbookPath, cell.id, cell.source);
   }
 
   // Shift+Enter and Ctrl+Enter. A cell already running or queued isn't run again, as
@@ -61,7 +61,7 @@
   }
 
   function stopFromKeyboard(): void {
-    if (active) stopCell(notebookPath, cell.id);
+    if (active) stopCell(runbookPath, cell.id);
   }
 
   // The same shortcuts with the focus elsewhere in the cell: the toolbar or the output
@@ -82,19 +82,19 @@
   }
 
   function remove(): void {
-    if (active) stopCell(notebookPath, cell.id);
+    if (active) stopCell(runbookPath, cell.id);
     // Its pane would otherwise stay in memory until the window closes.
-    forgetCell(notebookPath, cell.id);
+    forgetCell(runbookPath, cell.id);
     ondelete();
   }
 
   // The pane, if the cell has run before, comes back with its output as it was.
   const attachPane: Attachment<HTMLElement> = (slot) => {
     paneSlot = slot;
-    existingPane(notebookPath, cell.id)?.attach(slot, runButton ?? null);
+    existingPane(runbookPath, cell.id)?.attach(slot, runButton ?? null);
     return () => {
       // Looked up again: a first run since mounting has created the pane meanwhile.
-      existingPane(notebookPath, cell.id)?.detach();
+      existingPane(runbookPath, cell.id)?.detach();
       paneSlot = null;
     };
   };
@@ -115,13 +115,13 @@
         class="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-800"
         title={active ? "Stop" : "Run"}
         aria-label={active ? "Stop" : "Run"}
-        onclick={() => (active ? stopCell(notebookPath, cell.id) : start())}
+        onclick={() => (active ? stopCell(runbookPath, cell.id) : start())}
       >
         {#if active}■{:else}▶&#xFE0E;{/if}
       </button>
       <CellMenu
         items={[
-          { label: "Clear output", onselect: () => existingPane(notebookPath, cell.id)?.clear() },
+          { label: "Clear output", onselect: () => existingPane(runbookPath, cell.id)?.clear() },
           { label: "Delete cell", onselect: remove, danger: true },
         ]}
       />

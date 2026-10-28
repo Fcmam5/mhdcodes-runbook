@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { SessionState } from "../../../shared/types";
 
-  // null: the notebook has no session yet. Compact: the dot alone, for the sidebar.
+  // null: the runbook has no session yet. Compact: the dot alone, for the sidebar.
   const { state, compact = false }: { state: SessionState | null; compact?: boolean } = $props();
 
   // SPEC §9.3: grey = no session, green = ready, amber = busy, red = dead. A session

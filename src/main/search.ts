@@ -1,22 +1,22 @@
-// Full-text search over the notebooks (SPEC §9.2): an in-memory minisearch index of
-// each notebook's title, tags and cell sources, kept current by the IPC handlers as
-// notebooks are saved, created, renamed and deleted. No Electron imports.
+// Full-text search over the runbooks (SPEC §9.2): an in-memory minisearch index of
+// each runbook's title, tags and cell sources, kept current by the IPC handlers as
+// runbooks are saved, created, renamed and deleted. No Electron imports.
 
 import MiniSearch from "minisearch";
-import type { Notebook, SearchResult } from "../shared/types";
-import { listNotebooks, readNotebook } from "./notebooks";
+import type { Runbook, SearchResult } from "../shared/types";
+import { listRunbooks, readRunbook } from "./runbooks";
 
 const SNIPPET_LENGTH = 100;
 const MAX_RESULTS = 50;
 
 interface Indexed {
-  id: string; // the notebook's path
+  id: string; // the runbook's path
   title: string;
   tags: string;
   text: string; // every cell's source, one after another
 }
 
-export class NotebookIndex {
+export class RunbookIndex {
   private readonly index = new MiniSearch<Indexed>({
     fields: ["title", "tags", "text"],
     storeFields: ["title", "text"],
@@ -35,15 +35,15 @@ export class NotebookIndex {
 
   constructor(private readonly dir: string) {}
 
-  // Indexes every notebook in the folder, once, before the first search.
+  // Indexes every runbook in the folder, once, before the first search.
   private load(): Promise<void> {
     this.loaded ??= (async () => {
-      const summaries = await listNotebooks(this.dir).catch(() => []);
-      const notebooks = await Promise.all(
-        summaries.map((summary) => readNotebook(this.dir, summary.path).catch(() => null)),
+      const summaries = await listRunbooks(this.dir).catch(() => []);
+      const runbooks = await Promise.all(
+        summaries.map((summary) => readRunbook(this.dir, summary.path).catch(() => null)),
       );
-      for (const notebook of notebooks) {
-        if (notebook && !this.touched.has(notebook.path)) this.put(notebook);
+      for (const runbook of runbooks) {
+        if (runbook && !this.touched.has(runbook.path)) this.put(runbook);
       }
       this.touched.clear();
     })();
@@ -63,10 +63,10 @@ export class NotebookIndex {
       }));
   }
 
-  // Adds or replaces a notebook, e.g. after a save.
-  update(notebook: Notebook): void {
-    this.touched.add(notebook.path);
-    this.put(notebook);
+  // Adds or replaces a runbook, e.g. after a save.
+  update(runbook: Runbook): void {
+    this.touched.add(runbook.path);
+    this.put(runbook);
   }
 
   remove(path: string): void {
@@ -74,17 +74,17 @@ export class NotebookIndex {
     if (this.index.has(path)) this.index.discard(path);
   }
 
-  rename(from: string, notebook: Notebook): void {
+  rename(from: string, runbook: Runbook): void {
     this.remove(from);
-    this.update(notebook);
+    this.update(runbook);
   }
 
-  private put(notebook: Notebook): void {
+  private put(runbook: Runbook): void {
     const document: Indexed = {
-      id: notebook.path,
-      title: notebook.title,
-      tags: notebook.tags.join(" "),
-      text: notebook.cells.map((cell) => cell.source).join("\n"),
+      id: runbook.path,
+      title: runbook.title,
+      tags: runbook.tags.join(" "),
+      text: runbook.cells.map((cell) => cell.source).join("\n"),
     };
     if (this.index.has(document.id)) this.index.replace(document);
     else this.index.add(document);

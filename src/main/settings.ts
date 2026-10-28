@@ -5,7 +5,7 @@ import type { Settings } from "../shared/types";
 import { isNotFound } from "./fs";
 
 export function defaultSettings(): Settings {
-  return { notebooksDir: join(homedir(), "Runbooks") };
+  return { runbooksDir: join(homedir(), "Runbooks") };
 }
 
 // Reads settings.json, falling back to defaults for anything missing or invalid.
@@ -32,11 +32,11 @@ export async function loadSettings(file: string): Promise<Settings> {
   }
   if (typeof stored !== "object" || stored === null) return defaults;
 
-  const { notebooksDir } = stored as Record<string, unknown>;
+  const { runbooksDir } = stored as Record<string, unknown>;
   return {
-    notebooksDir:
-      typeof notebooksDir === "string" && isAbsolute(notebooksDir)
-        ? notebooksDir
-        : defaults.notebooksDir,
+    runbooksDir:
+      typeof runbooksDir === "string" && isAbsolute(runbooksDir)
+        ? runbooksDir
+        : defaults.runbooksDir,
   };
 }

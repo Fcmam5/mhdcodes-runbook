@@ -6,11 +6,11 @@
     insertCell,
     setCellSource,
     setTags,
-  } from "../state/notebook-edits";
-  import { NO_NOTEBOOK_RUNS } from "../state/run-store";
+  } from "../state/runbook-edits";
+  import { NO_RUNBOOK_RUNS } from "../state/run-store";
   import { startupExcerpt } from "../state/startup-excerpt";
-  import type { CellType, Notebook } from "../../../shared/types";
-  import { notebooks } from "../lib/notebooks";
+  import type { CellType, Runbook } from "../../../shared/types";
+  import { runbooks } from "../lib/runbooks";
   import { runs } from "../lib/runs";
   import AddCell from "./AddCell.svelte";
   import InlineEdit from "./InlineEdit.svelte";
@@ -19,27 +19,27 @@
   import SessionNotice from "./SessionNotice.svelte";
   import ShellCell from "./ShellCell.svelte";
 
-  // onrename: the title also names the file, so editing it renames the notebook (SPEC §8).
-  const { notebook, onrename }: { notebook: Notebook; onrename: (title: string) => void } =
+  // onrename: the title also names the file, so editing it renames the runbook (SPEC §8).
+  const { runbook, onrename }: { runbook: Runbook; onrename: (title: string) => void } =
     $props();
 
   // The session state and its notice live in the run store, so they survive switching.
-  const { session, end } = $derived($runs[notebook.path] ?? NO_NOTEBOOK_RUNS);
+  const { session, end } = $derived($runs[runbook.path] ?? NO_RUNBOOK_RUNS);
   let restartError: string | null = $state(null);
   // The cell just added: a markdown cell opens in its editor, a shell cell's editor
   // takes the focus.
   let added: string | null = $state(null);
 
-  // Every edit goes through the notebook store, which autosaves it (SPEC §8).
-  function edit(change: (notebook: Notebook) => Notebook): void {
-    notebooks.edit(notebook.path, change);
+  // Every edit goes through the runbook store, which autosaves it (SPEC §8).
+  function edit(change: (runbook: Runbook) => Runbook): void {
+    runbooks.edit(runbook.path, change);
   }
 
   function add(type: CellType, index: number): void {
     edit((current) => {
       const result = insertCell(current, type, index);
       added = result.cell.id;
-      return result.notebook;
+      return result.runbook;
     });
   }
 
@@ -59,13 +59,13 @@
     edit((current) => deleteCell(current, cellId));
     if (!focused) return;
     await tick();
-    focusCell(Math.min(index, notebook.cells.length - 1));
+    focusCell(Math.min(index, runbook.cells.length - 1));
   }
 
   async function restart(): Promise<void> {
     restartError = null;
     try {
-      await window.api.restartSession(notebook.path);
+      await window.api.restartSession(runbook.path);
     } catch (cause) {
       restartError = messageOf(cause);
     }
@@ -77,14 +77,14 @@
     <div class="flex items-center justify-between gap-4">
       <div class="min-w-0 flex-1">
         <InlineEdit
-          value={notebook.title}
+          value={runbook.title}
           label="Title"
           inputClass="text-2xl font-semibold tracking-tight"
           oncommit={(title) => {
-            if (title.trim() !== "" && title.trim() !== notebook.title) onrename(title);
+            if (title.trim() !== "" && title.trim() !== runbook.title) onrename(title);
           }}
         >
-          <h1 class="truncate text-2xl font-semibold tracking-tight">{notebook.title}</h1>
+          <h1 class="truncate text-2xl font-semibold tracking-tight">{runbook.title}</h1>
         </InlineEdit>
       </div>
       <span class="flex shrink-0 items-center gap-1">
@@ -102,13 +102,13 @@
     </div>
     <div class="mt-1 text-sm text-zinc-500">
       <InlineEdit
-        value={notebook.tags.join(", ")}
+        value={runbook.tags.join(", ")}
         label="Tags"
         placeholder="Comma-separated, e.g. audio, pipewire"
         oncommit={(text) => edit((current) => setTags(current, text))}
       >
-        {#if notebook.tags.length > 0}
-          tags: {notebook.tags.join(", ")}
+        {#if runbook.tags.length > 0}
+          tags: {runbook.tags.join(", ")}
         {:else}
           <span class="text-zinc-400">Add tags</span>
         {/if}
@@ -119,7 +119,7 @@
   {#if end}
     <SessionNotice
       details={end.type === "start-failed" ? startupExcerpt(end.output) : ""}
-      ondismiss={() => runs.dismissEnd(notebook.path)}
+      ondismiss={() => runs.dismissEnd(runbook.path)}
     >
       {#if end.type === "start-failed"}
         Shell didn't start. Your <code>~/.bashrc</code> may exec another shell or wait for input.
@@ -135,10 +135,10 @@
     </SessionNotice>
   {/if}
 
-  {#each notebook.cells as cell, index (cell.id)}
+  {#each runbook.cells as cell, index (cell.id)}
     {#if cell.type === "shell"}
       <ShellCell
-        notebookPath={notebook.path}
+        runbookPath={runbook.path}
         {cell}
         autofocus={cell.id === added}
         onchange={(source) => edit((current) => setCellSource(current, cell.id, source))}
@@ -153,12 +153,12 @@
         ondelete={() => void removeCell(cell.id, index)}
       />
     {/if}
-    {#if index < notebook.cells.length - 1}
+    {#if index < runbook.cells.length - 1}
       <AddCell subtle onadd={(type) => add(type, index + 1)} />
     {/if}
   {:else}
     <p class="pt-12 text-center text-zinc-500">This runbook is empty</p>
   {/each}
 
-  <AddCell onadd={(type) => add(type, notebook.cells.length)} />
+  <AddCell onadd={(type) => add(type, runbook.cells.length)} />
 </article>

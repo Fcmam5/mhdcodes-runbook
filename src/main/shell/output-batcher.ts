@@ -3,13 +3,13 @@
 // once per interval, in one piece. No Electron imports.
 
 export interface CellOutput {
-  notebookPath: string;
+  runbookPath: string;
   cellId: string;
   data: string;
 }
 
 export class OutputBatcher {
-  // Keyed by notebook path and cell ID; a Map keeps the order output arrived in.
+  // Keyed by runbook path and cell ID; a Map keeps the order output arrived in.
   private readonly pending = new Map<string, CellOutput>();
   private timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -20,7 +20,7 @@ export class OutputBatcher {
 
   push(output: CellOutput): void {
     // A NUL can't appear in a path, so it can't make two keys collide.
-    const key = `${output.notebookPath}\0${output.cellId}`;
+    const key = `${output.runbookPath}\0${output.cellId}`;
     const queued = this.pending.get(key);
     if (queued) queued.data += output.data;
     else this.pending.set(key, { ...output });
