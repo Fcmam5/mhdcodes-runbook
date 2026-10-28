@@ -10,6 +10,8 @@ export default defineConfig({
   },
   renderer: {
     plugins: [svelte({ configFile: false }), tailwindcss()],
-    build: { minify: true },
+    // Loaded from disk, not over a network, so one big chunk costs nothing worth
+    // splitting for (xterm and CodeMirror are most of it, and both are needed at once).
+    build: { minify: true, chunkSizeWarningLimit: 1500 },
   },
 });
