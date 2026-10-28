@@ -1,4 +1,4 @@
-import { renameSync, writeFileSync } from "node:fs";
+import { renameSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { isNotFound } from "./settings";
 
@@ -19,16 +19,14 @@ export interface Rect {
   height: number;
 }
 
-export const DEFAULT_SIZE = { width: 1200, height: 800 };
 export const MIN_SIZE = { width: 800, height: 500 };
 
-// How much of a restored window must be on some display for its position to be kept.
+const DEFAULT_SIZE = { width: 1200, height: 800 };
+
+// How much of a restored window's top edge must be on a display for its position to
+// be kept. The title bar sits along that edge, so the window can always be dragged.
 // Less, and the display it was on is probably gone (an unplugged monitor).
 const MIN_VISIBLE = { width: 100, height: 50 };
-
-export function defaultWindowState(): WindowState {
-  return { ...DEFAULT_SIZE };
-}
 
 // Reads a stored state, or null if the text isn't one.
 export function parseWindowState(text: string): WindowState | null {
@@ -49,22 +47,25 @@ export function parseWindowState(text: string): WindowState | null {
   return state;
 }
 
-// Fits a stored state to the displays there are now: at least the minimum size, and
-// the position dropped when too little of the window would be on any display.
-export function restoreWindowState(saved: WindowState | null, workAreas: Rect[]): WindowState {
-  if (!saved) return defaultWindowState();
+// Fits a stored state to the displays there are now. The position is kept only when
+// the window's top edge is on one of the work areas; otherwise the window is centred
+// on the primary one. Either way the size is shrunk to fit that work area, but never
+// below the minimum.
+export function restoreWindowState(
+  saved: WindowState | null,
+  workAreas: Rect[],
+  primary: Rect,
+): WindowState {
+  const size = saved ?? DEFAULT_SIZE;
+  const position =
+    saved?.x !== undefined && saved.y !== undefined ? { x: saved.x, y: saved.y } : null;
+  const area = position && workAreas.find((each) => topEdgeOn({ ...position, ...size }, each));
+  const fit = area ?? primary;
   const state: WindowState = {
-    width: Math.max(saved.width, MIN_SIZE.width),
-    height: Math.max(saved.height, MIN_SIZE.height),
+    width: Math.max(MIN_SIZE.width, Math.min(size.width, fit.width)),
+    height: Math.max(MIN_SIZE.height, Math.min(size.height, fit.height)),
   };
-  if (saved.x !== undefined && saved.y !== undefined) {
-    const window = { x: saved.x, y: saved.y, width: state.width, height: state.height };
-    if (workAreas.some((area) => visible(window, area))) {
-      state.x = saved.x;
-      state.y = saved.y;
-    }
-  }
-  return state;
+  return area && position ? { ...position, ...state } : state;
 }
 
 export async function loadWindowState(file: string): Promise<WindowState | null> {
@@ -77,21 +78,30 @@ export async function loadWindowState(file: string): Promise<WindowState | null>
 }
 
 // Synchronous, because it runs as the window closes and the app quits right after.
-// Atomic like notebook saves: a crash mid-write leaves the previous state.
+// Atomic like notebook saves: a failed write leaves the previous state, and no temp file.
 export function saveWindowState(file: string, state: WindowState): void {
-  const tmp = `${file}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
-  renameSync(tmp, file);
+  const temp = `${file}.tmp`;
+  try {
+    writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`);
+    renameSync(temp, file);
+  } catch (error) {
+    rmSync(temp, { force: true });
+    throw error;
+  }
 }
 
 function isInteger(value: unknown): value is number {
   return Number.isInteger(value);
 }
 
-// At least MIN_VISIBLE of the window overlaps the area.
-function visible(window: Rect, area: Rect): boolean {
-  const width = Math.min(window.x + window.width, area.x + area.width) - Math.max(window.x, area.x);
-  const height =
-    Math.min(window.y + window.height, area.y + area.height) - Math.max(window.y, area.y);
-  return width >= MIN_VISIBLE.width && height >= MIN_VISIBLE.height;
+// The window's top edge is on the area: at least MIN_VISIBLE.width of it, and at least
+// MIN_VISIBLE.height of the area below it.
+function topEdgeOn(window: Rect, area: Rect): boolean {
+  const overlap =
+    Math.min(window.x + window.width, area.x + area.width) - Math.max(window.x, area.x);
+  return (
+    overlap >= MIN_VISIBLE.width &&
+    window.y >= area.y &&
+    window.y <= area.y + area.height - MIN_VISIBLE.height
+  );
 }

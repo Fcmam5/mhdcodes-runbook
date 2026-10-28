@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* SPEC §9.4: the system UI font for prose, a monospace stack for code and output.
-   Keep --font-mono in step with MONOSPACE in lib/fonts.ts. */
+   The cell editors and output panes use --font-mono too. */
 @theme {
   --font-sans: system-ui, sans-serif;
   --font-mono: "Ubuntu Mono", "DejaVu Sans Mono", monospace;

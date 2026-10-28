@@ -9,7 +9,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { type ITheme, Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { MONOSPACE } from "./fonts";
 
 const MAX_HEIGHT_PX = 400;
 
@@ -58,7 +57,8 @@ export class OutputPane {
     this.terminal = new Terminal({
       rows: 1,
       scrollback: 5000,
-      fontFamily: MONOSPACE,
+      // xterm draws on a canvas and can't use var(), so read the stack from the CSS.
+      fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--font-mono"),
       fontSize: 14,
       theme: THEME,
       cursorBlink: true,

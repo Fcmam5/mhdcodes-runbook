@@ -6,7 +6,6 @@ import { EditorState, Prec, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { Attachment } from "svelte/attachments";
-import { MONOSPACE } from "./fonts";
 
 export interface EditorOptions {
   initial: string; // the document the editor starts with; later edits come from the user
@@ -18,20 +17,15 @@ export interface EditorOptions {
 }
 
 // The app is dark only; `dark: true` switches CodeMirror's base theme to its dark
-// variant. Caret and selection are set to match the app's colours.
+// variant. The editors use the browser's own caret and selection (no drawSelection),
+// so the caret is coloured with caret-color and the selection follows color-scheme.
 const theme = EditorView.theme(
   {
     "&": { fontSize: "14px", backgroundColor: "transparent" },
     "&.cm-focused": { outline: "none" },
-    ".cm-scroller": { fontFamily: MONOSPACE, lineHeight: "1.5" },
+    ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.5" },
     ".cm-content": { padding: "8px 0", caretColor: "#f4f4f5" },
     ".cm-line": { padding: "0 12px" },
-    ".cm-cursor": { borderLeftColor: "#f4f4f5" },
-    // zinc-700, and a blue tint while focused.
-    ".cm-selectionBackground": { backgroundColor: "#3f3f46 !important" },
-    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
-      backgroundColor: "#1e3a8a !important",
-    },
   },
   { dark: true },
 );

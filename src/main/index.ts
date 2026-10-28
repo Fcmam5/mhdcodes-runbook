@@ -15,7 +15,7 @@ import {
 
 function createWindow(saved: WindowState | null, windowStateFile: string): void {
   const workAreas = screen.getAllDisplays().map((display) => display.workArea);
-  const bounds = restoreWindowState(saved, workAreas);
+  const bounds = restoreWindowState(saved, workAreas, screen.getPrimaryDisplay().workArea);
   const win = new BrowserWindow({
     ...bounds,
     minWidth: MIN_SIZE.width,
@@ -37,13 +37,10 @@ function createWindow(saved: WindowState | null, windowStateFile: string): void 
   // Remember the window's size and position for the next launch (SPEC §9.4). The
   // normal bounds, so a maximized window comes back at its unmaximized size. Being
   // maximized isn't restored: see DECISIONS.md.
-  // On Wayland the position can't be read or set; the compositor places the window.
-  let stateSaved = false;
-  win.on("close", () => {
-    if (stateSaved) return;
-    stateSaved = true;
+  win.once("close", () => {
+    const { x, y, width, height } = win.getNormalBounds();
     try {
-      saveWindowState(windowStateFile, win.getNormalBounds());
+      saveWindowState(windowStateFile, onWayland() ? { width, height } : { x, y, width, height });
     } catch (error) {
       console.error("Could not save the window state:", error);
     }
@@ -84,6 +81,15 @@ function createWindow(saved: WindowState | null, windowStateFile: string): void 
   } else {
     void win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
   }
+}
+
+// On Wayland the position can't be read or set: the compositor places windows, and
+// Electron reports a made-up position, which must not be saved. Electron picks
+// Wayland when the session is one, unless told otherwise with --ozone-platform.
+function onWayland(): boolean {
+  const platform = app.commandLine.getSwitchValue("ozone-platform");
+  if (platform) return platform === "wayland";
+  return process.env["XDG_SESSION_TYPE"] === "wayland" || Boolean(process.env["WAYLAND_DISPLAY"]);
 }
 
 // Name the data folder after the app ID (~/.config/com.codiume.runbook) rather than
@@ -132,6 +138,12 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(async () => {
     // Any failure here must still end in a window: a windowless app never quits and
     // keeps the single-instance lock, so the app could not be started again.
+    // The window state is read meanwhile; nothing before the window needs it.
+    const windowStateFile = join(app.getPath("userData"), "window-state.json");
+    const windowState = loadWindowState(windowStateFile).catch((error: unknown) => {
+      console.error("Could not load the window state:", error);
+      return null;
+    });
     const settings = await loadSettings(join(app.getPath("userData"), "settings.json")).catch(
       (error: unknown) => {
         console.error("Could not load settings, using defaults:", error);
@@ -143,12 +155,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     registerIpc(settings, sessions);
 
-    const windowStateFile = join(app.getPath("userData"), "window-state.json");
-    const windowState = await loadWindowState(windowStateFile).catch((error: unknown) => {
-      console.error("Could not load the window state:", error);
-      return null;
-    });
-    createWindow(windowState, windowStateFile);
+    createWindow(await windowState, windowStateFile);
   });
 
   app.on("window-all-closed", () => app.quit());
