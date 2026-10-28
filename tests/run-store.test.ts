@@ -1,6 +1,6 @@
 import { get } from "svelte/store";
 import { describe, expect, it } from "vitest";
-import { createRunStore, isActive, NO_CELL_RUN } from "../src/shared/run-store";
+import { createRunStore, isActive, NO_CELL_RUN } from "../src/renderer/src/state/run-store";
 
 describe("run store", () => {
   it("keeps statuses per notebook and cell", () => {

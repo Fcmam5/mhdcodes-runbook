@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import type { Settings } from "../shared/types";
+import { isNotFound } from "./fs";
 
 export function defaultSettings(): Settings {
   return { notebooksDir: join(homedir(), "Runbooks") };
@@ -38,8 +39,4 @@ export async function loadSettings(file: string): Promise<Settings> {
         ? notebooksDir
         : defaults.notebooksDir,
   };
-}
-
-export function isNotFound(error: unknown): boolean {
-  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }

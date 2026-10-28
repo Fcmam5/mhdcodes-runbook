@@ -1,5 +1,5 @@
 // The status line under a shell cell (SPEC §9.3), e.g. "✓ exit 0 · 1.2s". Pure, so it is unit tested.
-import type { CellRunStatus } from "./types";
+import type { CellRunStatus } from "../../../shared/types";
 
 export interface StatusLine {
   icon: "spinner" | "✓" | "✗" | "■" | null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { messageOf } from "../src/shared/errors";
-import { formatDuration, statusLine } from "../src/shared/status";
+import { messageOf } from "../src/renderer/src/state/errors";
+import { formatDuration, statusLine } from "../src/renderer/src/state/status";
 
 describe("statusLine", () => {
   it("shows a spinner while running", () => {

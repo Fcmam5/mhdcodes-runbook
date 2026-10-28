@@ -12,6 +12,7 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
+    "src/renderer/src/state/**/*",
     "tests/**/*"
   ]
 }

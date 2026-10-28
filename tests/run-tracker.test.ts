@@ -6,7 +6,7 @@ import {
   type PaneCallbacks,
   type RunApi,
   type TrackedPane,
-} from "../src/shared/run-tracker";
+} from "../src/renderer/src/state/run-tracker";
 import type { RunState } from "../src/shared/types";
 
 const NB = "/n/a.md";

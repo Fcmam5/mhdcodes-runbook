@@ -3,7 +3,7 @@
 // keeps taking events for notebooks that aren't shown. Pure: tested in plain Node.
 
 import { get, writable, type Readable } from "svelte/store";
-import type { CellRunStatus, SessionEnd, SessionState } from "./types";
+import type { CellRunStatus, SessionEnd, SessionState } from "../../../shared/types";
 
 export interface CellRun {
   status: CellRunStatus | null; // null until the cell's first run

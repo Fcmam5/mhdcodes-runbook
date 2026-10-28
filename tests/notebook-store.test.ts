@@ -7,8 +7,8 @@ import {
   setCellSource,
   setTags,
   setTitle,
-} from "../src/shared/notebook-edits";
-import { createNotebookStore } from "../src/shared/notebook-store";
+} from "../src/renderer/src/state/notebook-edits";
+import { createNotebookStore } from "../src/renderer/src/state/notebook-store";
 import type { Notebook } from "../src/shared/types";
 
 function notebook(path = "/n/a.md"): Notebook {

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { Attachment } from "svelte/attachments";
-  import { isActive, NO_CELL_RUN } from "../../../shared/run-store";
-  import { statusLine } from "../../../shared/status";
+  import { isActive, NO_CELL_RUN } from "../state/run-store";
+  import { statusLine } from "../state/status";
   import type { Cell } from "../../../shared/types";
   import { shellEditor } from "../lib/codemirror";
   import { existingPane, forgetCell, paneFor, runCell, runs, stopCell } from "../lib/runs";

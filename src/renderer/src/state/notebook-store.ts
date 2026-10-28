@@ -4,7 +4,7 @@
 // for the run store (see App.svelte). Pure apart from the injected save: tested in Node.
 
 import { writable, type Readable } from "svelte/store";
-import type { Notebook } from "./types";
+import type { Notebook } from "../../../shared/types";
 
 export interface NotebookStoreOptions {
   save: (notebook: Notebook) => Promise<void>;

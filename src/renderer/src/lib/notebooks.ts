@@ -1,5 +1,5 @@
 // The open notebooks and their autosave, saved through the main process.
-import { createNotebookStore } from "../../../shared/notebook-store";
+import { createNotebookStore } from "../state/notebook-store";
 
 export const notebooks = createNotebookStore({
   save: (notebook) => window.api.saveNotebook(notebook),

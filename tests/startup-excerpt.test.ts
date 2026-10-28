@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { startupExcerpt } from "../src/shared/startup-excerpt";
+import { startupExcerpt } from "../src/renderer/src/state/startup-excerpt";
 
 describe("startupExcerpt", () => {
   it("keeps the first lines as plain text", () => {

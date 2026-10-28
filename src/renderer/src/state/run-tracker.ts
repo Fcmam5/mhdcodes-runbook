@@ -6,7 +6,7 @@
 // The API and the pane are injected (window.api and OutputPane in the renderer), so
 // this is tested in plain Node with fakes.
 
-import type { CellOutputEvent, CellStatusEvent, SessionStateEvent } from "../preload/api";
+import type { CellOutputEvent, CellStatusEvent, SessionStateEvent } from "../../../preload/api";
 import { messageOf } from "./errors";
 import { createRunStore, type RunsByNotebook, type RunStore } from "./run-store";
 

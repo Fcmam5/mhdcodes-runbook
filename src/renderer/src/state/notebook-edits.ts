@@ -1,8 +1,8 @@
 // The edits the notebook view makes (SPEC §9.3), as pure functions from a notebook to
 // a new one. The old one is never changed, so a store holding it sees a new value.
 
-import { createCell } from "./notebook";
-import type { Cell, CellType, Notebook } from "./types";
+import { createCell } from "../../../shared/notebook";
+import type { Cell, CellType, Notebook } from "../../../shared/types";
 
 export function setCellSource(notebook: Notebook, cellId: string, source: string): Notebook {
   return {

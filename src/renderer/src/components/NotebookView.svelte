@@ -1,14 +1,14 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { messageOf } from "../../../shared/errors";
+  import { messageOf } from "../state/errors";
   import {
     deleteCell,
     insertCell,
     setCellSource,
     setTags,
-  } from "../../../shared/notebook-edits";
-  import { NO_NOTEBOOK_RUNS } from "../../../shared/run-store";
-  import { startupExcerpt } from "../../../shared/startup-excerpt";
+  } from "../state/notebook-edits";
+  import { NO_NOTEBOOK_RUNS } from "../state/run-store";
+  import { startupExcerpt } from "../state/startup-excerpt";
   import type { CellType, Notebook } from "../../../shared/types";
   import { notebooks } from "../lib/notebooks";
   import { runs } from "../lib/runs";

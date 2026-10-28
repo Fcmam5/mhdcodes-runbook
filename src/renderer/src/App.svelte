@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Notebook, NotebookSummary } from "../../shared/types";
-  import { messageOf } from "../../shared/errors";
+  import { messageOf } from "./state/errors";
   import NotebookView from "./components/NotebookView.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import { notebooks as openNotebooks } from "./lib/notebooks";
