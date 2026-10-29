@@ -19,10 +19,20 @@
     onrename: (path: string, title: string) => Promise<string | null>;
     ondelete: (path: string) => void;
     onreveal: (path: string) => void;
+    onclearsession: (path: string) => void;
   }
 
-  const { runbooks, folder, selected, onselect, oncreate, onrename, ondelete, onreveal }: Props =
-    $props();
+  const {
+    runbooks,
+    folder,
+    selected,
+    onselect,
+    oncreate,
+    onrename,
+    ondelete,
+    onreveal,
+    onclearsession,
+  }: Props = $props();
 
   // ~/Runbooks rather than /home/someone/Runbooks.
   const shownFolder = $derived(folder.replace(/^\/home\/[^/]+(?=\/|$)/, "~"));
@@ -155,12 +165,12 @@
   }
 
   // Opens at the pointer or under the ⋮, kept inside the window (the menu is about
-  // 210 × 120 px).
+  // 210 × 160 px with all its items).
   function openMenu(path: string, x: number, y: number, opener: HTMLElement): void {
     menu = {
       path,
       x: Math.max(8, Math.min(x, window.innerWidth - 220)),
-      y: Math.max(8, Math.min(y, window.innerHeight - 130)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 170)),
       opener,
     };
   }
@@ -402,6 +412,16 @@
       items={[
         { label: "Rename", icon: "pen", onselect: () => choose(startRename) },
         { label: "Show in folder", icon: "folder", onselect: () => choose(onreveal) },
+        // Only a runbook with a session has one to clear.
+        ...($runs[menu.path]?.session
+          ? [
+              {
+                label: "Clear session",
+                icon: "power" as const,
+                onselect: () => choose(onclearsession),
+              },
+            ]
+          : []),
         { label: "Delete…", icon: "trash", danger: true, onselect: () => choose(ondelete) },
       ]}
     />

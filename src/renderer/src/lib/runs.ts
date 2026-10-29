@@ -12,6 +12,7 @@ export const {
   paneFor,
   runCell,
   stopCell,
+  closeSession,
   forgetCell,
   renameRunbook: renameRuns,
   forgetRunbook: forgetRuns,

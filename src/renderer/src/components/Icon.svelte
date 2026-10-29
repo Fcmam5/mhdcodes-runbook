@@ -17,7 +17,8 @@
     | "pen"
     | "folder"
     | "alert"
-    | "check";
+    | "check"
+    | "power";
 </script>
 
 <script lang="ts">
@@ -66,6 +67,8 @@
     <path d="m10.3 2.9 2.8 2.8M3 13l.6-3L11 2.6a1 1 0 0 1 1.4 0l1.4 1.4a1 1 0 0 1 0 1.4L6.4 12.8 3 13z" />
   {:else if name === "folder"}
     <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.8l1.4 1.5h4.8A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" />
+  {:else if name === "power"}
+    <path d="M8 2.2v5.3M4.7 4.3a5 5 0 1 0 6.6 0" />
   {:else if name === "alert"}
     <circle cx="8" cy="8" r="6.4" stroke-width="1.5" /><path d="M8 4.8v3.6" stroke-width="1.6" /><circle cx="8" cy="10.9" r=".95" fill="currentColor" stroke="none" />
   {:else if name === "check"}

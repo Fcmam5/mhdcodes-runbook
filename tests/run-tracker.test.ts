@@ -46,6 +46,7 @@ function setup(overrides: Partial<RunApi> = {}) {
     cancelCell: async (_path, cellId) => void calls.push(`cancel ${cellId}`),
     sendInput: async (_path, data) => void calls.push(`input ${data}`),
     resizeSession: async (_path, cols, rows) => void calls.push(`resize ${cols}x${rows}`),
+    closeSession: async (path) => void calls.push(`close ${path}`),
     onCellStatus: (callback) => ((onStatus = callback), () => {}),
     onCellOutput: (callback) => ((onOutput = callback), () => {}),
     onSessionState: (callback) => ((onState = callback), () => {}),
@@ -151,6 +152,38 @@ describe("run tracker: actions", () => {
       requested: false,
       error: "Shell didn't start",
     });
+  });
+});
+
+describe("run tracker: closing a session", () => {
+  it("closes it in main, then shows the runbook as having no session", async () => {
+    const { tracker, calls, state } = setup();
+    state({ runbookPath: NB, state: "ready" });
+    await tracker.closeSession(NB);
+    expect(calls).toEqual([`close ${NB}`]);
+    expect(get(tracker.runs)[NB]?.session).toBeNull();
+  });
+
+  it("clears the runbook under its new name if it was renamed meanwhile", async () => {
+    let finish: (() => void) | undefined;
+    const { tracker, state } = setup({
+      closeSession: () => new Promise<void>((resolve) => (finish = resolve)),
+    });
+    state({ runbookPath: NB, state: "ready" });
+    const closing = tracker.closeSession(NB);
+    tracker.renameRunbook(NB, "/n/b.md");
+    finish?.();
+    await closing;
+    expect(get(tracker.runs)["/n/b.md"]?.session).toBeNull();
+  });
+
+  it("keeps the session when main fails to close it", async () => {
+    const { tracker, state } = setup({
+      closeSession: () => Promise.reject(new Error("nope")),
+    });
+    state({ runbookPath: NB, state: "ready" });
+    await expect(tracker.closeSession(NB)).rejects.toThrow("nope");
+    expect(get(tracker.runs)[NB]?.session).toBe("ready");
   });
 });
 

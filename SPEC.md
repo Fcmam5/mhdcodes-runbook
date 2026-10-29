@@ -306,7 +306,7 @@ Why this shape (verified against real bash under a pty):
 ### 6.6 Session lifetime
 
 - Sessions are keyed by runbook path and **stay alive when switching runbooks**: running cells keep running in the background. The renderer keeps each visited runbook's per-cell output (xterm buffers, capped by the 5000-line scrollback) and run statuses in memory, so switching back shows everything as it was.
-- A session ends only on: restart (§6.3.8), the shell exiting (§6.3.7), deleting the runbook, or app quit.
+- A session ends only on: restart (§6.3.8), the shell exiting (§6.3.7), Clear session in the sidebar menu (§9.2), deleting the runbook, or app quit.
 - Renaming a runbook moves its session to the new path without restarting it.
 
 ---
@@ -403,7 +403,7 @@ The sidebar is 272 px wide (224 px below a 1000 px window), and the runbook is a
 - A **+** button beside "Runbooks" (or the result count) opens an inline title input, then opens the new runbook.
 - Each runbook shows its title and a **one-line preview**: the first line of its prose, with markdown syntax removed (its first command when it has no prose; "Empty" when it has nothing). Narrow windows drop the previews but keep search snippets.
 - Runbooks with a live session show the **session dot** (same colours as the runbook view), so a cell still running in the background is visible. On hover the dot gives way to a ⋮ button.
-- **Right-click or ⋮** on a runbook opens its menu: Rename (inline), Show in folder, Delete… (with a confirm dialog; the file goes to the trash).
+- **Right-click or ⋮** on a runbook opens its menu: Rename (inline), Show in folder, Clear session (only while it has a session: ends its shell like `closeSession`, so the next run starts a fresh one; asks first when a cell is running), Delete… (with a confirm dialog; the file goes to the trash).
 - The runbooks folder is shown at the bottom (`~/Runbooks`).
 
 ### 9.3 Runbook view

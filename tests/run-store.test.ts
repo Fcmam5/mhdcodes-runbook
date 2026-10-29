@@ -37,6 +37,23 @@ describe("run store", () => {
     expect(get(runs)["/a.md"]).toMatchObject({ session: "starting", end: null });
   });
 
+  it("drops a session closed on purpose, with any notice about it", () => {
+    const runs = createRunStore();
+    runs.onStatus({ runbookPath: "/a.md", status: { cellId: "c1", state: "success" } });
+    runs.onSessionState({
+      runbookPath: "/a.md",
+      state: "dead",
+      end: { type: "exited", exitCode: 3 },
+    });
+    runs.clearSession("/a.md");
+    expect(get(runs)["/a.md"]).toMatchObject({ session: null, end: null });
+    // The cells keep their last runs.
+    expect(get(runs)["/a.md"]?.cells["c1"]?.status?.state).toBe("success");
+    // Nothing to clear: no entry is created.
+    runs.clearSession("/b.md");
+    expect(get(runs)["/b.md"]).toBeUndefined();
+  });
+
   it("keeps a notice through later states until dismissed", () => {
     const runs = createRunStore();
     runs.onSessionState({

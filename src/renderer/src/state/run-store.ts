@@ -28,6 +28,8 @@ export interface RunStore extends Readable<RunsByRunbook> {
   setRequested(runbookPath: string, cellId: string, requested: boolean): void;
   setError(runbookPath: string, cellId: string, error: string | null): void;
   dismissEnd(runbookPath: string): void;
+  // The session was closed on purpose: no session, and no notice about an old one.
+  clearSession(runbookPath: string): void;
   // Drops a deleted cell's entry.
   forgetCell(runbookPath: string, cellId: string): void;
   // Moves a renamed runbook's entry to its new path.
@@ -65,6 +67,10 @@ export function createRunStore(): RunStore {
     setRequested: (path, cellId, requested) => updateCell(path, cellId, { requested }),
     setError: (path, cellId, error) => updateCell(path, cellId, { error }),
     dismissEnd: (path) => updateRunbook(path, (runs) => ({ ...runs, end: null })),
+    clearSession(path) {
+      if (!get(store)[path]) return;
+      updateRunbook(path, (runs) => ({ ...runs, session: null, end: null }));
+    },
     forgetCell(path, cellId) {
       // Nothing to drop for a cell that never ran: don't create an empty entry for
       // its runbook, or tell subscribers about a change that didn't happen.

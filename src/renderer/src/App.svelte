@@ -5,7 +5,7 @@
   import Sidebar from "./components/Sidebar.svelte";
   import { runbooks as openRunbooks } from "./lib/runbooks";
   import { previewOf } from "../../shared/preview";
-  import { claimPath, forgetRuns, renameRuns } from "./lib/runs";
+  import { claimPath, closeSession, forgetRuns, renameRuns, runs } from "./lib/runs";
   import { refocus, rowKey } from "./lib/focus";
 
   const saveErrors = openRunbooks.errors;
@@ -162,6 +162,23 @@
     }
   }
 
+  // Ends the runbook's shell (the sidebar's "Clear session"). A running cell would be
+  // stopped with it, so that asks first, as Delete does.
+  async function clearSession(path: string): Promise<void> {
+    if ($runs[path]?.session === "busy") {
+      const title = runbooks.find((summary) => summary.path === path)?.title ?? path;
+      if (!window.confirm(`A cell is still running in “${title}”. Clear its session and stop it?`)) {
+        return;
+      }
+    }
+    try {
+      await closeSession(path);
+      error = null;
+    } catch (cause) {
+      error = messageOf(cause);
+    }
+  }
+
   function reveal(path: string): void {
     window.api.showRunbookInFolder(path).catch((cause: unknown) => {
       error = messageOf(cause);
@@ -201,6 +218,7 @@
     onrename={rename}
     ondelete={(path) => void remove(path)}
     onreveal={reveal}
+    onclearsession={(path) => void clearSession(path)}
   />
 
   <main class="min-w-0 overflow-y-auto">

@@ -32,6 +32,7 @@ export interface RunApi {
   cancelCell(runbookPath: string, cellId: string): Promise<void>;
   sendInput(runbookPath: string, data: string): Promise<void>;
   resizeSession(runbookPath: string, cols: number, rows: number): Promise<void>;
+  closeSession(runbookPath: string): Promise<void>;
   onCellOutput(callback: (event: CellOutputEvent) => void): () => void;
   onCellStatus(callback: (event: CellStatusEvent) => void): () => void;
   onSessionState(callback: (event: SessionStateEvent) => void): () => void;
@@ -48,6 +49,10 @@ export interface RunTracker<P extends TrackedPane> {
   // attached (paneFor + attach), so the shell can be sized to it first.
   runCell(runbookPath: string, cellId: string, source: string): Promise<void>;
   stopCell(runbookPath: string, cellId: string): void;
+  // Ends the runbook's shell and what runs in it (the sidebar's "Clear session"): its
+  // running cell ends interrupted, and the next run starts a new session. Main reports
+  // no state for a session closed on purpose, so the store drops it here.
+  closeSession(runbookPath: string): Promise<void>;
   // Frees everything kept for a deleted cell: its pane and its run-store entry.
   forgetCell(runbookPath: string, cellId: string): void;
   // Moves a renamed runbook's panes and run state to its new path (SPEC §6.6). Call it
@@ -192,6 +197,12 @@ export function createRunTracker<P extends TrackedPane>(
         const now = currentPath(path);
         if (!isForgotten(now, cellId)) runs.setError(now, cellId, messageOf(cause));
       });
+    },
+
+    async closeSession(requestedPath) {
+      await api.closeSession(currentPath(requestedPath));
+      // The runbook may have been renamed while main closed it.
+      runs.clearSession(currentPath(requestedPath));
     },
 
     forgetCell(runbookPath, cellId) {
