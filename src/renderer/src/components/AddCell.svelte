@@ -2,11 +2,11 @@
   import type { CellType } from "../../../shared/types";
   import Icon from "./Icon.svelte";
 
-  // "+ Markdown" / "+ Shell" (SPEC §9.3). Between cells it is a line with the two
-  // buttons, shown on hover or keyboard focus over the gap; it takes no space, so the
-  // runbook doesn't move when it appears. At the end it is the "Keep writing…" row.
-  const { onadd, between = false }: { onadd: (type: CellType) => void; between?: boolean } =
-    $props();
+  // "+ Markdown" / "+ Shell" (SPEC §9.3). Between cells it fills the gap between them
+  // (`gap`, its height class), with a line and the two buttons shown on hover or keyboard
+  // focus; hidden, they take no clicks from the cells around. At the end (no `gap`) it is
+  // the "Keep writing…" row.
+  const { onadd, gap }: { onadd: (type: CellType) => void; gap?: string } = $props();
 </script>
 
 {#snippet add(type: CellType, label: string, classes: string)}
@@ -15,10 +15,10 @@
   </button>
 {/snippet}
 
-{#if between}
-  <div class="relative z-10 h-0">
+{#if gap}
+  <div class={["group relative z-10", gap]}>
     <div
-      class="absolute inset-x-0 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 opacity-0 transition-opacity duration-100 before:absolute before:inset-x-0 before:top-1/2 before:border-t before:border-rule focus-within:opacity-100 hover:opacity-100"
+      class="pointer-events-none absolute inset-x-0 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 opacity-0 transition-opacity duration-100 before:absolute before:inset-x-0 before:top-1/2 before:border-t before:border-rule focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
     >
       {#each [["markdown", "Markdown"], ["shell", "Shell"]] as const as [type, label] (type)}
         {@render add(

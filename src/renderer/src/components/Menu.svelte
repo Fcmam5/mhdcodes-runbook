@@ -25,14 +25,15 @@
     menu.querySelector("button")?.focus();
   };
 
-  // Up and Down move between the items.
+  // Up and Down move between the items; from the menu itself, to the first or last.
   function onkeydown(event: KeyboardEvent): void {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
     const buttons = [...(event.currentTarget as HTMLElement).querySelectorAll("button")];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    const step = event.key === "ArrowDown" ? 1 : -1;
-    buttons[(at + step + buttons.length) % buttons.length]?.focus();
+    const down = event.key === "ArrowDown";
+    const next = at === -1 ? (down ? 0 : buttons.length - 1) : at + (down ? 1 : -1);
+    buttons[(next + buttons.length) % buttons.length]?.focus();
   }
 
   // The action runs first: it may need what the owner clears when the menu closes.
@@ -55,7 +56,7 @@
     <span class={item.danger ? "text-dead" : "text-muted"}><Icon name={item.icon} size={14} /></span>
     {item.label}
     {#if item.shortcut}
-      <kbd class="ml-auto pl-6 font-mono text-[11px] text-faint">{item.shortcut}</kbd>
+      <kbd class="ml-auto pl-6 font-mono text-[11px] text-muted">{item.shortcut}</kbd>
     {/if}
   </button>
 {/snippet}

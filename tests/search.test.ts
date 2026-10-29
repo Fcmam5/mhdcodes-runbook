@@ -17,7 +17,7 @@ describe("snippetFor", () => {
 
   it("cuts a long line around the match, marking the cuts", () => {
     const line = `${"x ".repeat(100)}needle${" y".repeat(100)}`;
-    const snippet = snippetFor(line, ["needle"], 40);
+    const snippet = snippetFor(line, ["needle"], 40) ?? "";
     expect(snippet).toContain("needle");
     expect(snippet.startsWith("…")).toBe(true);
     expect(snippet.endsWith("…")).toBe(true);
@@ -26,7 +26,7 @@ describe("snippetFor", () => {
 
   it("keeps a match near the end of a long line in view", () => {
     const line = `${"a".repeat(200)} needle`;
-    expect(snippetFor(line, ["needle"], 40).endsWith("needle")).toBe(true);
+    expect(snippetFor(line, ["needle"], 40)?.endsWith("needle")).toBe(true);
   });
 
   it("treats regex characters in a term as plain text", () => {
@@ -34,9 +34,9 @@ describe("snippetFor", () => {
     expect(snippetFor("xaxb\nuse a.b here", ["a.b"])).toBe("use a.b here");
   });
 
-  it("falls back to the first line with text when only the title matched", () => {
-    expect(snippetFor("\n\n  First   real line \nsecond", ["title"])).toBe("First real line");
-    expect(snippetFor("", ["title"])).toBe("");
+  it("has none when no term is in the text (only the title or tags matched)", () => {
+    expect(snippetFor("\n\n  First   real line \nsecond", ["title"])).toBeNull();
+    expect(snippetFor("", ["title"])).toBeNull();
   });
 });
 
@@ -85,8 +85,21 @@ describe("RunbookIndex", () => {
         path: join(dir, "audio.md"),
         title: "Fix audio",
         snippet: "systemctl --user restart wireplumber",
+        terms: ["restart"],
       },
     ]);
+  });
+
+  it("returns the words matched, with prefixes and typos as the index has them", async () => {
+    const index = new RunbookIndex(dir);
+    expect((await index.search("wirepl"))[0]?.terms).toEqual(["wireplumber"]);
+    expect((await index.search("kernal"))[0]?.terms).toEqual(["kernel"]);
+  });
+
+  it("shows the sidebar's preview when only the title or tags matched", async () => {
+    const index = new RunbookIndex(dir);
+    expect((await index.search("fix"))[0]?.snippet).toBe("After a kernel update.");
+    expect((await index.search("sound"))[0]?.snippet).toBe("After a kernel update.");
   });
 
   it("returns nothing for an empty query", async () => {

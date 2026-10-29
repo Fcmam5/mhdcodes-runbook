@@ -121,7 +121,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class={[
-    "shell-card relative mt-5 mb-6 rounded-card border bg-block p-2",
+    "shell-card relative rounded-card border bg-block p-2",
     run.status?.state === "running"
       ? "border-[color-mix(in_srgb,var(--color-busy)_42%,var(--color-rule))]"
       : "border-rule",

@@ -68,13 +68,21 @@
     focusCell(Math.min(index, runbook.cells.length - 1));
   }
 
-  // A markdown cell's top margin: 16 px after prose, none after a
-  // shell card (its own margin is the gap), and 40 px before a heading, so a new
-  // section starts with room above it.
-  function markdownSpacing(index: number, source: string): string {
-    if (index === 0) return "";
-    if (/^\s*#{1,6}\s/.test(source)) return "mt-10";
-    return runbook.cells[index - 1]?.type === "markdown" ? "mt-4" : "";
+  // The gap above the cell at `index` (index > 0), filled by the "+ Markdown / + Shell"
+  // line: 16 px between prose, 20 px above a shell card and 24 px below one, and 40 px
+  // above a heading, so a new section starts with room above it.
+  function gapAbove(index: number): string {
+    const cell = runbook.cells[index];
+    if (cell?.type === "markdown" && startsWithHeading(cell.source)) return "h-10";
+    if (runbook.cells[index - 1]?.type === "shell") return "h-6";
+    return cell?.type === "shell" ? "h-5" : "h-4";
+  }
+
+  // ATX ("## Setup") or setext ("Setup" over "===" or "---"), after any blank lines.
+  function startsWithHeading(source: string): boolean {
+    const [first = "", second = ""] = source.replace(/^(\s*\n)+/, "").split("\n");
+    if (/^ {0,3}#{1,6}(\s|$)/.test(first)) return true;
+    return /^ {0,3}\S/.test(first) && /^ {0,3}(=+|-+)\s*$/.test(second);
   }
 
   async function restart(): Promise<void> {
@@ -150,7 +158,8 @@
     >
       {#if runbook.tags.length > 0}
         <span class="flex flex-wrap gap-x-3 text-muted">
-          {#each runbook.tags as tag (tag)}<span>#{tag}</span>{/each}
+          <!-- Unkeyed: a file's frontmatter may list a tag twice. -->
+          {#each runbook.tags as tag}<span>#{tag}</span>{/each}
         </span>
       {:else}
         <span class="text-faint">Add tags</span>
@@ -160,7 +169,7 @@
 
   {#each runbook.cells as cell, index (cell.id)}
     {#if index > 0}
-      <AddCell between onadd={(type) => add(type, index)} />
+      <AddCell gap={gapAbove(index)} onadd={(type) => add(type, index)} />
     {/if}
     {#if cell.type === "shell"}
       <ShellCell
@@ -174,7 +183,6 @@
     {:else}
       <MarkdownCell
         source={cell.source}
-        spacing={markdownSpacing(index, cell.source)}
         autoEdit={cell.id === added}
         onchange={(source) => edit((current) => setCellSource(current, cell.id, source))}
         ondelete={() => void removeCell(cell.id, index)}

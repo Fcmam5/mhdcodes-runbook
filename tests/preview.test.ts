@@ -32,6 +32,27 @@ describe("previewOf", () => {
     );
   });
 
+  it("keeps inline code as written", () => {
+    expect(previewOf([md("Clean up with `rm *.tmp` and `ls *.log`")])).toBe(
+      "Clean up with rm *.tmp and ls *.log",
+    );
+    expect(previewOf([md("Set `__pycache__` aside")])).toBe("Set __pycache__ aside");
+    expect(previewOf([md("Run ``echo `date` `` now")])).toBe("Run echo `date` now");
+  });
+
+  it("reads asterisks with spaces around them as text, not emphasis", () => {
+    expect(previewOf([md("Price is 5 * 3 and 2 * 4")])).toBe("Price is 5 * 3 and 2 * 4");
+    expect(previewOf([md("a ** b ** c, but *this* and __that__")])).toBe(
+      "a ** b ** c, but this and that",
+    );
+  });
+
+  it("skips fenced code, which isn't prose", () => {
+    expect(previewOf([md("```python\nprint(1)\n```\nThen the prose.")])).toBe("Then the prose.");
+    expect(previewOf([md("~~~~\n```\nstill code\n~~~~\nOut")])).toBe("Out");
+    expect(previewOf([md("```js\nconsole.log(1)\n```"), sh("node app.js")])).toBe("node app.js");
+  });
+
   it("skips blank lines and horizontal rules", () => {
     expect(previewOf([md("\n---\n\n  Watch the log  ")])).toBe("Watch the log");
   });

@@ -209,14 +209,16 @@
 .out-wrap:has(.pane-slot > :not(.output-collapsed)) .out-tools {
   display: flex;
 }
-/* With no output showing, the status row is the card's last row: pull it in a little,
-   so its text sits evenly between the command and the card's edge. */
-.shell-card:not(:has(.pane-slot > :not(.output-collapsed))) .status-row {
+/* With no output showing (and no error line under it), the status row is the card's last
+   row: pull it in a little, so its text sits evenly between the command and the card's
+   edge. */
+.shell-card:not(:has(.pane-slot > :not(.output-collapsed))) .status-row:has(+ .out-wrap) {
   height: 30px;
   margin-bottom: -4px;
 }
-/* Narrow windows drop the status row's hint (design: 800 × 500). */
-@media (max-width: 1000px) {
+/* Narrow windows drop the status row's hint (design: 800 × 500). The same breakpoint
+   as Tailwind's max-[1000px]. */
+@media (width < 1000px) {
   .status-row .hint {
     display: none;
   }

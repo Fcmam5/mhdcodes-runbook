@@ -52,5 +52,6 @@ export interface Settings {
 export interface SearchResult {
   path: string;
   title: string;
-  snippet: string; // one line around the first match, or the runbook's first line
+  snippet: string; // one line around the first match, or the runbook's preview
+  terms: string[]; // the indexed words it matched, lowercase: "pipewire" for "pipew"
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { RunbookSummary, SearchResult } from "../../../shared/types";
   import { runs } from "../lib/runs";
   import { aroundMatch, highlight } from "../state/highlight";
@@ -27,7 +28,7 @@
   // Search (SPEC §9.2): an empty query shows every runbook; otherwise the results,
   // each with a one-line snippet. Queries wait 150 ms after the last keystroke.
   let query = $state("");
-  let results: SearchResult[] | null = $state(null);
+  let results = $state<SearchResult[] | null>(null);
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let searchSeq = 0;
 
@@ -52,6 +53,19 @@
     }, 150);
   }
 
+  // A runbook deleted or renamed during a search: the search runs again, and until it
+  // answers, what is gone isn't shown. `runbooks` is new on every edit, so this watches
+  // the paths as one string, which only changes when a path does.
+  const pathList = $derived(runbooks.map((runbook) => runbook.path).join("\n"));
+  const paths = $derived(new Set(pathList.split("\n")));
+  const shownResults = $derived(results?.filter((result) => paths.has(result.path)) ?? null);
+  $effect(() => {
+    void pathList;
+    untrack(() => {
+      if (query.trim() !== "") search(query);
+    });
+  });
+
   let searchInput: HTMLInputElement | undefined = $state();
 
   // Ctrl+K (SPEC §9.5).
@@ -75,7 +89,8 @@
   // A create or rename on its way: Enter, then the blur it may cause, must not send it twice.
   let busy = false;
   // The item menu, opened by right-click (at the pointer) or by the item's ⋮.
-  let menu: { path: string; x: number; y: number } | null = $state(null);
+  // `opener` gets the focus back when it closes by Esc or a choice.
+  let menu: { path: string; x: number; y: number; opener: HTMLElement } | null = $state(null);
   let menuElement: HTMLElement | undefined = $state();
 
   async function submitNew(): Promise<void> {
@@ -96,9 +111,11 @@
     }
   }
 
+  // In the list: a search result has no rename input, so the search clears first.
   function startRename(path: string): void {
     const runbook = runbooks.find((summary) => summary.path === path);
     if (!runbook) return;
+    search("");
     renaming = runbook.path;
     renameTitle = runbook.title;
   }
@@ -121,18 +138,27 @@
 
   // Opens at the pointer or under the ⋮, kept inside the window (the menu is about
   // 210 × 120 px).
-  function openMenu(path: string, x: number, y: number): void {
+  function openMenu(path: string, x: number, y: number, opener: HTMLElement): void {
     menu = {
       path,
       x: Math.max(8, Math.min(x, window.innerWidth - 220)),
       y: Math.max(8, Math.min(y, window.innerHeight - 130)),
+      opener,
     };
+  }
+
+  // The focus was in the menu: give it back, rather than drop it on the page. Before
+  // the action, which may move it on (Rename's input takes it).
+  function closeMenu(): void {
+    const opener = menu?.opener;
+    menu = null;
+    opener?.focus();
   }
 
   function choose(action: (path: string) => void): void {
     if (!menu) return;
     const { path } = menu;
-    menu = null;
+    closeMenu();
     action(path);
   }
 
@@ -147,12 +173,17 @@
     if (menu && !menuElement?.contains(event.target as Node)) menu = null;
   }}
   onkeydown={(event) => {
-    if (menu && event.key === "Escape") menu = null;
+    if (menu && event.key === "Escape") {
+      event.preventDefault();
+      closeMenu();
+    }
   }}
   onblur={() => (menu = null)}
 />
 
-{#snippet row(path: string, title: string, sub: string, highlightQuery: string | null)}
+<!-- `terms`: for a search result, the words it matched, marked in its snippet; null in
+     the plain list, where `sub` is the preview. -->
+{#snippet row(path: string, title: string, sub: string, terms: readonly string[] | null)}
   {@const session = $runs[path]?.session ?? null}
   <div class="group relative">
     <button
@@ -167,21 +198,21 @@
       onclick={() => onselect(path)}
       oncontextmenu={(event) => {
         event.preventDefault();
-        openMenu(path, event.clientX, event.clientY);
+        openMenu(path, event.clientX, event.clientY, event.currentTarget);
       }}
     >
       <span class="block truncate text-[14px] leading-5 font-medium text-ink">{title}</span>
-      {#if sub !== "" || highlightQuery === null}
+      {#if sub !== "" || terms === null}
         <span
           class={[
             "block truncate text-meta leading-[18px] text-faint",
-            highlightQuery === null && "max-[1000px]:hidden",
+            terms === null && "max-[1000px]:hidden",
           ]}
         >
-          {#if highlightQuery === null}
+          {#if terms === null}
             {sub === "" ? "Empty" : sub}
           {:else}
-            {#each highlight(aroundMatch(sub, highlightQuery), highlightQuery) as part, i (i)}
+            {#each highlight(aroundMatch(sub, terms), terms) as part, i (i)}
               {#if part.match}<mark class="rounded-[3px] bg-[color-mix(in_srgb,var(--color-acc)_24%,transparent)] px-px text-ink">{part.text}</mark>{:else}{part.text}{/if}
             {/each}
           {/if}
@@ -210,7 +241,7 @@
         // Under the row, right-aligned with it. The row, not this button: it always has
         // a size, even when the button was hidden a moment ago.
         const row = event.currentTarget.parentElement?.getBoundingClientRect();
-        if (row) openMenu(path, row.right - 208, row.bottom + 4);
+        if (row) openMenu(path, row.right - 208, row.bottom + 4, event.currentTarget);
       }}
     >
       <Icon name="more" size={14} />
@@ -218,7 +249,7 @@
   </div>
 {/snippet}
 
-<nav class="flex min-h-0 flex-col bg-side px-2 pt-2" onscroll={() => (menu = null)}>
+<nav class="flex min-h-0 flex-col bg-side px-2 pt-2">
   <label
     class="flex h-[34px] flex-none items-center gap-2 rounded-row bg-raise pr-2 pl-2.5 text-faint focus-within:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-acc)_55%,transparent)]"
   >
@@ -248,15 +279,15 @@
         <Icon name="x" size={14} />
       </button>
     {:else}
-      <kbd class="rounded bg-white/6 px-[5px] font-mono text-[11px] leading-[18px] text-faint">Ctrl K</kbd>
+      <kbd class="rounded bg-white/6 px-[5px] font-mono text-[11px] leading-[18px] text-muted">Ctrl K</kbd>
     {/if}
   </label>
 
   <div class="flex h-10 flex-none items-center justify-between pt-1 pr-1 pl-2.5 text-meta text-faint">
     <span>
-      {#if results}{results.length === 0
+      {#if shownResults}{shownResults.length === 0
           ? "No matches"
-          : `${results.length} ${results.length === 1 ? "result" : "results"}`}{:else}Runbooks{/if}
+          : `${shownResults.length} ${shownResults.length === 1 ? "result" : "results"}`}{:else}Runbooks{/if}
     </span>
     <button
       type="button"
@@ -269,7 +300,11 @@
     </button>
   </div>
 
-  <div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2">
+  <!-- The menu is fixed to the window, so it closes rather than stay behind on a scroll. -->
+  <div
+    class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2"
+    onscroll={() => (menu = null)}
+  >
     {#if creating}
       <input
         class="h-[34px] flex-none rounded-row bg-raise px-2.5 text-ui text-ink outline-none placeholder:text-faint focus:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-acc)_55%,transparent)]"
@@ -290,13 +325,13 @@
       />
     {/if}
 
-    {#if results}
-      {#each results as result (result.path)}
+    {#if shownResults}
+      {#each shownResults as result (result.path)}
         {@render row(
           result.path,
           runbooks.find((runbook) => runbook.path === result.path)?.title ?? result.title,
           result.snippet,
-          query,
+          result.terms,
         )}
       {/each}
     {:else}
@@ -336,7 +371,7 @@
     style:top={`${menu.y}px`}
   >
     <Menu
-      onchoose={() => (menu = null)}
+      onchoose={closeMenu}
       items={[
         { label: "Rename", icon: "pen", onselect: () => choose(startRename) },
         { label: "Show in folder", icon: "folder", onselect: () => choose(onreveal) },

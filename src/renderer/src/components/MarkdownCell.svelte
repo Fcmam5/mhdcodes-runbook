@@ -7,12 +7,11 @@
   interface Props {
     source: string;
     autoEdit?: boolean; // a new cell starts in the editor
-    spacing?: string; // its top margin, which depends on the cell before it
     onchange: (source: string) => void;
     ondelete: () => void;
   }
 
-  const { source, autoEdit = false, spacing = "", onchange, ondelete }: Props = $props();
+  const { source, autoEdit = false, onchange, ondelete }: Props = $props();
 
   // Rendered by default; click or Enter edits, Esc or clicking outside renders again (SPEC §9.3).
   let editing = $state(untrack(() => autoEdit));
@@ -61,9 +60,11 @@
 <!-- Prose first (SPEC §9.3). While editing, the text stays where it was and an
      accent bar in the margin marks the cell. Its ⋮ sits in the right margin. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class={["group relative", spacing]} data-cell {onkeydown}>
+<div class="group relative" data-cell {onkeydown}>
+  <!-- While its menu is open, above the cells after it; flush with the cell in narrow
+       windows, where the margin is only as wide as the button. -->
   <div
-    class="absolute top-0 left-full z-10 ml-2 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+    class="absolute top-0 left-full z-10 ml-2 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 has-aria-expanded:z-30 has-aria-expanded:opacity-100 max-[1000px]:ml-0"
   >
     <CellMenu
       items={[

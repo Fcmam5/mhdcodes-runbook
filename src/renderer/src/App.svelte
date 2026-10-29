@@ -3,11 +3,12 @@
   import { messageOf } from "./state/errors";
   import RunbookView from "./components/RunbookView.svelte";
   import Sidebar from "./components/Sidebar.svelte";
-  import { runbooks as openRunbooks, savedAt } from "./lib/runbooks";
+  import { runbooks as openRunbooks } from "./lib/runbooks";
   import { previewOf } from "../../shared/preview";
   import { claimPath, forgetRuns, renameRuns } from "./lib/runs";
 
   const saveErrors = openRunbooks.errors;
+  const savedAt = openRunbooks.savedAt;
 
   let runbooks: RunbookSummary[] = $state([]);
   let runbooksDir = $state("");
@@ -39,7 +40,8 @@
         : summary;
     }),
   );
-  // When the runbook on screen was last saved, for "Edited …".
+  // When the runbook on screen was last saved, for "Edited …": from this window, or
+  // before its first save here, from its file (the sidebar's summary).
   const mtime = $derived(
     shown === null
       ? null

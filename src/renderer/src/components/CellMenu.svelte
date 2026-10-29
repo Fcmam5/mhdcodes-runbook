@@ -31,8 +31,8 @@
     bind:this={button}
     type="button"
     class={[
-      "grid size-7 place-items-center rounded-ctl text-muted hover:bg-white/7 hover:text-ink",
-      open && "bg-white/7 text-ink",
+      "grid size-7 place-items-center rounded-ctl",
+      open ? "bg-white/7 text-ink" : "text-muted hover:bg-white/7 hover:text-ink",
     ]}
     title="More"
     aria-label="Cell menu"

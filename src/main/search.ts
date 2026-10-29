@@ -3,6 +3,7 @@
 // runbooks are saved, created, renamed and deleted. No Electron imports.
 
 import MiniSearch from "minisearch";
+import { previewOf } from "../shared/preview";
 import type { Runbook, SearchResult } from "../shared/types";
 import { listRunbooks, readRunbook } from "./runbooks";
 
@@ -14,12 +15,13 @@ interface Indexed {
   title: string;
   tags: string;
   text: string; // every cell's source, one after another
+  preview: string; // the sidebar's preview, the snippet when no match is in the text
 }
 
 export class RunbookIndex {
   private readonly index = new MiniSearch<Indexed>({
     fields: ["title", "tags", "text"],
-    storeFields: ["title", "text"],
+    storeFields: ["title", "text", "preview"],
     searchOptions: {
       boost: { title: 3, tags: 2 },
       // Results update as you type: "pipew" finds "pipewire".
@@ -59,7 +61,8 @@ export class RunbookIndex {
       .map((hit) => ({
         path: hit.id as string,
         title: hit["title"] as string,
-        snippet: snippetFor(hit["text"] as string, hit.terms),
+        snippet: snippetFor(hit["text"] as string, hit.terms) ?? (hit["preview"] as string),
+        terms: hit.terms,
       }));
   }
 
@@ -85,6 +88,7 @@ export class RunbookIndex {
       title: runbook.title,
       tags: runbook.tags.join(" "),
       text: runbook.cells.map((cell) => cell.source).join("\n"),
+      preview: previewOf(runbook.cells),
     };
     if (this.index.has(document.id)) this.index.replace(document);
     else this.index.add(document);
@@ -93,8 +97,8 @@ export class RunbookIndex {
 
 // One line of `text` around the first of `terms` it contains (matched words, as the
 // index has them: lowercase), cut to about 100 characters with … where it was cut.
-// When none appears (only the title or tags matched), the first line with text.
-export function snippetFor(text: string, terms: string[], length = SNIPPET_LENGTH): string {
+// Null when none appears: only the title or tags matched.
+export function snippetFor(text: string, terms: string[], length = SNIPPET_LENGTH): string | null {
   const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim());
   // Terms are whole indexed words, so only match at the start of a word: "a" must not
   // match inside "match".
@@ -107,7 +111,7 @@ export function snippetFor(text: string, terms: string[], length = SNIPPET_LENGT
     );
     if (Number.isFinite(at)) return around(line, at, length);
   }
-  return around(lines.find((line) => line !== "") ?? "", 0, length);
+  return null;
 }
 
 // `length` characters of `line`, starting a little before `at` so the match has some

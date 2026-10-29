@@ -250,6 +250,25 @@ describe("runbook store: rename and delete", () => {
     expect(saved.map((n) => n.path)).toEqual(["/n/a.md"]);
   });
 
+  it("forgets when a runbook was saved once it moves or goes, so a reused path starts fresh", async () => {
+    let clock = 1000;
+    const store = createRunbookStore({ save, now: () => clock });
+    store.open(runbook());
+    store.edit("/n/a.md", (n) => setTitle(n, "Edited"));
+    await store.flush("/n/a.md");
+    expect(get(store.savedAt)).toEqual({ "/n/a.md": 1000 });
+
+    await store.rename("/n/a.md", renamedTo("/n/b.md", "B"));
+    expect(get(store.savedAt)).toEqual({});
+    clock = 2000;
+    store.edit("/n/b.md", (n) => setTitle(n, "Edited again"));
+    await store.flush("/n/b.md");
+    expect(get(store.savedAt)).toEqual({ "/n/b.md": 2000 });
+
+    await store.remove("/n/b.md", () => Promise.resolve());
+    expect(get(store.savedAt)).toEqual({});
+  });
+
   it("renames a runbook that isn't open by just running the rename", async () => {
     const store = createRunbookStore({ save });
     const moved = await store.rename("/n/a.md", renamedTo("/n/b.md", "B"));

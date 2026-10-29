@@ -9,11 +9,15 @@ import type { Runbook } from "../../../shared/types";
 export interface RunbookStoreOptions {
   save: (runbook: Runbook) => Promise<void>;
   delayMs?: number; // default 500
+  now?: () => number; // default Date.now
 }
 
 export interface RunbookStore extends Readable<Record<string, Runbook>> {
   // Save errors by path, until a save of that runbook succeeds.
   errors: Readable<Record<string, string>>;
+  // When each runbook was last saved from this window, by path, for "Edited …". It
+  // moves and goes with the runbook: a path used again later starts without one.
+  savedAt: Readable<Record<string, number>>;
   // Keeps `runbook` unless one with its path is open already, and returns the kept one.
   open(runbook: Runbook): Runbook;
   get(path: string): Runbook | undefined;
@@ -32,9 +36,14 @@ export interface RunbookStore extends Readable<Record<string, Runbook>> {
   remove(path: string, perform: () => Promise<void>): Promise<void>;
 }
 
-export function createRunbookStore({ save, delayMs = 500 }: RunbookStoreOptions): RunbookStore {
+export function createRunbookStore({
+  save,
+  delayMs = 500,
+  now = Date.now,
+}: RunbookStoreOptions): RunbookStore {
   const runbooks = writable<Record<string, Runbook>>({});
   const errors = writable<Record<string, string>>({});
+  const savedAt = writable<Record<string, number>>({});
   let current: Record<string, Runbook> = {};
   runbooks.subscribe((value) => {
     current = value;
@@ -63,6 +72,7 @@ export function createRunbookStore({ save, delayMs = 500 }: RunbookStoreOptions)
     try {
       await save(runbook);
       setError(path, null);
+      savedAt.update((all) => ({ ...all, [path]: now() }));
     } catch (cause) {
       // Still unsaved: the next edit or flush tries again.
       unsaved.add(path);
@@ -96,12 +106,14 @@ export function createRunbookStore({ save, delayMs = 500 }: RunbookStoreOptions)
     timers.delete(path);
     unsaved.delete(path);
     setError(path, null);
+    savedAt.update(({ [path]: _dropped, ...rest }) => rest);
     if (current[path]) runbooks.update(({ [path]: _dropped, ...rest }) => rest);
   }
 
   return {
     subscribe: runbooks.subscribe,
     errors: { subscribe: errors.subscribe },
+    savedAt: { subscribe: savedAt.subscribe },
     open(runbook) {
       const kept = current[runbook.path];
       if (kept) return kept;
