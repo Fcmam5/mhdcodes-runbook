@@ -1,12 +1,21 @@
 # https://www.electron.build/configuration
 appId: codes.mhd.runbook
 productName: Runbook
+
+# The newer AppImage toolset (as in snip), still marked beta. Its runtime is static, so
+# the AppImage needs no libfuse2, which Ubuntu 24.04 doesn't install; and its launcher
+# turns Chromium's sandbox off where the system blocks it.
+toolsets:
+  appimage: "1.0.3"
 directories:
   output: dist
   buildResources: build
 files:
   - out/**/*
   - package.json
+  # node-pty's C++ sources and its macOS/Windows builds and libraries: Linux loads the
+  # pty.node electron-builder builds into node_modules/node-pty/build.
+  - "!**/node_modules/node-pty/{prebuilds,deps,src,scripts}/**"
 asar: true
 electronFuses:
   runAsNode: false
@@ -20,10 +29,14 @@ linux:
     - AppImage
     - deb
   category: Development
+  # The .deb's one-line summary. package.json's description is its long one, and also
+  # the tooltip in app launchers, so it stays short.
+  synopsis: Markdown notes with shell cells you can run
   syncDesktopName: true
   maintainer: MHD
   artifactName: ${name}-${version}-${arch}.${ext}
 deb:
+  packageCategory: devel
   # Replaces electron-builder's default list with what runbook needs. The first four cover
   # every library the Electron binary links against (GTK pulls in the X11, ATK and cups libs).
   # libasound2 alone is a virtual package on Ubuntu 24.04, where apt may pick an incompatible

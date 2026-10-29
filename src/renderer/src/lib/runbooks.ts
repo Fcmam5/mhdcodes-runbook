@@ -3,7 +3,7 @@ import { readable } from "svelte/store";
 import { createRunbookStore } from "../state/runbook-store";
 
 export const runbooks = createRunbookStore({
-  save: (runbook) => window.api.saveRunbook(runbook),
+  save: (runbook, { force }) => window.api.saveRunbook(runbook, { force }),
 });
 
 // The time, updated every half minute: "Edited 2 minutes ago" keeps counting. Set

@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  checkRunbook,
   ensureRunbooksDir,
   listRunbooks,
   readRunbook,
@@ -256,6 +257,47 @@ describe("saveRunbook", () => {
     expect(await readdir(dir)).toEqual(["notes.md"]);
   });
 
+  it("won't write over a file changed outside the app since it was read, unless forced", async () => {
+    const runbook = await opened();
+    await writeFile(runbook.path, "Edited in another editor\n");
+    expect(await checkRunbook(dir, runbook.path)).toBe("changed");
+    expect(await saveRunbook(dir, { ...runbook, title: "Mine" })).toEqual({ state: "changed" });
+    expect(await readFile(runbook.path, "utf8")).toBe("Edited in another editor\n");
+
+    expect(await saveRunbook(dir, { ...runbook, title: "Mine" }, { force: true })).toMatchObject({
+      state: "saved",
+    });
+    expect(await readFile(runbook.path, "utf8")).toContain("title: Mine");
+    expect(await checkRunbook(dir, runbook.path)).toBe("same");
+  });
+
+  it("won't recreate a file removed outside the app, unless forced", async () => {
+    const runbook = await opened();
+    await rm(runbook.path);
+    expect(await checkRunbook(dir, runbook.path)).toBe("missing");
+    expect(await saveRunbook(dir, runbook)).toEqual({ state: "missing" });
+    expect(await readdir(dir)).toEqual([]);
+    await saveRunbook(dir, runbook, { force: true });
+    expect(await readdir(dir)).toEqual(["notes.md"]);
+  });
+
+  it("takes a file read again as it is now, and its own saves as known", async () => {
+    const runbook = await opened();
+    await writeFile(runbook.path, "Changed outside\n");
+    const again = await readRunbook(dir, runbook.path);
+    expect(await saveRunbook(dir, { ...again, title: "One" })).toMatchObject({ state: "saved" });
+    expect(await saveRunbook(dir, { ...again, title: "Two" })).toMatchObject({ state: "saved" });
+    expect(await checkRunbook(dir, runbook.path)).toBe("same");
+  });
+
+  it("saves a runbook it just created without calling it changed", async () => {
+    await mkdir(dir, { recursive: true });
+    const created = await createRunbook(dir, "Fresh");
+    expect(await saveRunbook(dir, { ...created, title: "Fresh" })).toMatchObject({
+      state: "saved",
+    });
+  });
+
   it("ends with the last of several overlapping saves", async () => {
     const runbook = await opened();
     await Promise.all(
@@ -366,6 +408,14 @@ describe("renameRunbook", () => {
     await expect(renameRunbook(dir, path, "New")).rejects.toThrow("old.md is read-only");
     expect(await readdir(dir)).toEqual(["old.md"]);
     expect(await readFile(path, "utf8")).toBe("---\ntitle: Old\n---\n");
+  });
+
+  it("refuses to rename a file changed outside the app since it was read", async () => {
+    const path = await file("old.md", "---\ntitle: Old\n---\n");
+    await readRunbook(dir, path);
+    await writeFile(path, "---\ntitle: Old\n---\n\nAdded elsewhere\n");
+    await expect(renameRunbook(dir, path, "New")).rejects.toThrow("changed outside Runbook");
+    expect(await readdir(dir)).toEqual(["old.md"]);
   });
 
   it("gives a file without frontmatter one with the new title", async () => {

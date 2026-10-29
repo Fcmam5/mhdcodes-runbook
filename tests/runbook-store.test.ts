@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deleteCell,
   insertCell,
+  keepCellIds,
   parseTags,
   setCellSource,
   setTags,
@@ -190,6 +191,111 @@ function renamedTo(path: string, title: string): () => Promise<Runbook> {
     cells: [{ id: "main-id", type: "markdown", source: "Hello" }],
   });
 }
+
+describe("keepCellIds", () => {
+  it("keeps the window's IDs for cells that still match, and the file's own IDs", () => {
+    const open = runbook();
+    const fresh: Runbook = {
+      ...runbook(),
+      cells: [
+        { id: "new1", type: "markdown", source: "Hello" }, // unchanged: keeps m1
+        { id: "s1", type: "shell", source: "echo changed", info: "bash" }, // file ID stays
+        { id: "new2", type: "shell", source: "echo hi", info: "bash" }, // s1 is taken
+      ],
+    };
+    expect(keepCellIds(open, fresh).cells.map((cell) => cell.id)).toEqual(["m1", "s1", "new2"]);
+  });
+});
+
+describe("runbook store: a file changed outside the app", () => {
+  let results: string[];
+  let saved: { title: string; force: boolean }[];
+  const save = async (value: Runbook, { force }: { force: boolean }) => {
+    saved.push({ title: value.title, force });
+    return (force ? "saved" : (results.shift() ?? "saved")) as "saved" | "changed" | "missing";
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    results = [];
+    saved = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("is a conflict: nothing more is saved, and the edits stay, until the user decides", async () => {
+    const store = createRunbookStore({ save });
+    store.open(runbook());
+    results = ["changed"];
+    store.edit("/n/a.md", (n) => setTitle(n, "B"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(get(store.conflicts)).toEqual({ "/n/a.md": "changed" });
+    expect(get(store.errors)).toEqual({});
+    store.edit("/n/a.md", (n) => setTitle(n, "C"));
+    await vi.advanceTimersByTimeAsync(2000);
+    await store.flushAll();
+    expect(saved).toEqual([{ title: "B", force: false }]);
+    expect(get(store)["/n/a.md"]?.title).toBe("C");
+  });
+
+  it("overwrites the file with the window's copy when asked", async () => {
+    const store = createRunbookStore({ save });
+    store.open(runbook());
+    results = ["changed"];
+    store.edit("/n/a.md", (n) => setTitle(n, "B"));
+    await vi.advanceTimersByTimeAsync(500);
+    await store.overwrite("/n/a.md");
+    expect(saved.at(-1)).toEqual({ title: "B", force: true });
+    expect(get(store.conflicts)).toEqual({});
+    // Autosave goes on as before.
+    store.edit("/n/a.md", (n) => setTitle(n, "C"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(saved.at(-1)).toEqual({ title: "C", force: false });
+  });
+
+  it("reads the file again when asked, dropping the window's edits and keeping cell IDs", async () => {
+    const store = createRunbookStore({ save });
+    store.open(runbook());
+    results = ["changed"];
+    store.edit("/n/a.md", (n) => setTitle(n, "Mine"));
+    await vi.advanceTimersByTimeAsync(500);
+    const fromDisk: Runbook = {
+      ...runbook(),
+      title: "Theirs",
+      cells: [{ id: "x9", type: "markdown", source: "Hello" }],
+    };
+    store.readFromDisk("/n/a.md", fromDisk);
+    expect(get(store)["/n/a.md"]).toMatchObject({ title: "Theirs", cells: [{ id: "m1" }] });
+    expect(get(store.conflicts)).toEqual({});
+    await store.flushAll();
+    expect(saved).toHaveLength(1);
+  });
+
+  it("closes a runbook whose file is gone when the user takes the disk's side", async () => {
+    const store = createRunbookStore({ save });
+    store.open(runbook());
+    results = ["missing"];
+    store.edit("/n/a.md", (n) => setTitle(n, "B"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(get(store.conflicts)).toEqual({ "/n/a.md": "missing" });
+    store.readFromDisk("/n/a.md", null);
+    expect(get(store)).toEqual({});
+    expect(get(store.conflicts)).toEqual({});
+  });
+
+  it("stops a rename while the runbook is in conflict", async () => {
+    const store = createRunbookStore({ save });
+    store.open(runbook());
+    results = ["changed"];
+    store.edit("/n/a.md", (n) => setTitle(n, "B"));
+    const perform = vi.fn(async () => ({ ...runbook("/n/b.md"), title: "B" }));
+    await expect(store.rename("/n/a.md", perform)).rejects.toThrow("changed outside Runbook");
+    expect(perform).not.toHaveBeenCalled();
+    expect(Object.keys(get(store))).toEqual(["/n/a.md"]);
+  });
+});
 
 describe("runbook store: rename and delete", () => {
   let saved: Runbook[];

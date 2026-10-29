@@ -50,3 +50,23 @@ export function parseTags(text: string): string[] {
     ),
   ];
 }
+
+// A runbook read again from its file, with the cell IDs it had in the window wherever
+// the cells still match. Cells without an {id=…} in the file get new IDs on every read,
+// and output panes and run state are keyed by cell ID: an unchanged cell keeps its own.
+// A cell matches by its file ID, or else by type and source, in order.
+export function keepCellIds(open: Runbook, fresh: Runbook): Runbook {
+  const openIds = new Set(open.cells.map((cell) => cell.id));
+  // IDs the file has itself: they stay, so no other cell may take them.
+  const taken = new Set(fresh.cells.filter((cell) => openIds.has(cell.id)).map((cell) => cell.id));
+  const cells = fresh.cells.map((cell) => {
+    if (openIds.has(cell.id)) return cell;
+    const match = open.cells.find(
+      (old) => !taken.has(old.id) && old.type === cell.type && old.source === cell.source,
+    );
+    if (!match) return cell;
+    taken.add(match.id);
+    return { ...cell, id: match.id };
+  });
+  return { ...fresh, cells };
+}

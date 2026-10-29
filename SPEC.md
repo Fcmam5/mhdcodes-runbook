@@ -369,6 +369,7 @@ All main-process handlers must validate that any `path` argument resolves to a f
 - On first launch, if the folder is empty, create one sample runbook (`Welcome.md`) demonstrating markdown cells, a `cd` + `pwd` persistence example, and an `echo` with colors.
 - **Autosave:** debounce 500 ms after the last edit; also save on runbook switch and window close. Writes are atomic: write `<file>.tmp`, then `fs.rename`.
 - Filenames: slugify the title (`Fix audio after update` → `fix-audio-after-update.md`), adding `-2`, `-3`, etc. on collision.
+- **Changes made outside the app** (another editor, `git pull`, a cell editing its own file): an open runbook is kept as first read, so the app remembers what each file held when it last read or wrote it. A save or rename that finds the file changed, moved or deleted since then writes nothing. Instead, a message at the top of the runbook says so, with two buttons: **Read changes from disk** (the window's copy is replaced by the file, dropping its unsaved edits; a file that is gone closes) and **Overwrite changes on disk** (the window's copy is written over the file). Autosave waits until one is chosen. There is no merging and no diff. Picking up outside changes on its own is planned for v2 (§2).
 
 ---
 

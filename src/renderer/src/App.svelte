@@ -10,6 +10,7 @@
 
   const saveErrors = openRunbooks.errors;
   const savedAt = openRunbooks.savedAt;
+  const conflicts = openRunbooks.conflicts;
 
   let runbooks: RunbookSummary[] = $state([]);
   let runbooksDir = $state("");
@@ -118,6 +119,16 @@
   // and from the runbook's own title. Resolves with the new path, or null if it failed.
   async function rename(path: string, title: string): Promise<string | null> {
     try {
+      // Renaming rewrites the file from the window's copy, like a save: a file changed
+      // outside the app is a conflict to resolve first.
+      if (openRunbooks.get(path)) {
+        const disk = await window.api.checkRunbook(path);
+        if (disk !== "same") {
+          openRunbooks.setConflict(path, disk);
+          if (shown !== path) await open(path);
+          return null;
+        }
+      }
       const moved = await openRunbooks.rename(path, () => window.api.renameRunbook(path, title));
       // Right away, before awaiting anything: main has already moved the session, and
       // its events now name the new path.
@@ -136,6 +147,41 @@
     } catch (cause) {
       error = messageOf(cause);
       return null;
+    }
+  }
+
+  // The two ways out of a conflict (SPEC §8): take the file as it is now, dropping the
+  // window's unsaved edits, or write the window's copy over it.
+  async function readFromDisk(path: string): Promise<void> {
+    try {
+      const fresh = $conflicts[path] === "missing" ? null : await window.api.readRunbook(path);
+      openRunbooks.readFromDisk(path, fresh);
+      error = null;
+      if (fresh === null) {
+        // Gone from disk, so gone from the app.
+        runbooks = runbooks.filter((summary) => summary.path !== path);
+        if (selected === path || shown === path) {
+          selected = null;
+          shown = null;
+          const [next] = runbooks;
+          if (next) await open(next.path);
+        }
+        void refocus(selected === null ? "new-runbook" : rowKey(selected));
+      } else {
+        void refocus("title");
+      }
+    } catch (cause) {
+      error = messageOf(cause);
+    }
+  }
+
+  async function overwrite(path: string): Promise<void> {
+    try {
+      await openRunbooks.overwrite(path);
+      error = null;
+      void refocus("title");
+    } catch (cause) {
+      error = messageOf(cause);
     }
   }
 
@@ -224,14 +270,45 @@
   <main class="min-w-0 overflow-y-auto">
     {#if error}
       <p
-        class="mx-auto mt-6 max-w-[680px] rounded-menu border border-[color-mix(in_srgb,var(--color-dead)_28%,var(--color-page))] bg-[color-mix(in_srgb,var(--color-dead)_8%,var(--color-page))] px-3.5 py-3 text-[14px] leading-[22px] text-body"
+        class="mx-auto mt-6 max-[1000px]:mx-7 max-w-[680px] rounded-menu border border-[color-mix(in_srgb,var(--color-dead)_28%,var(--color-page))] bg-[color-mix(in_srgb,var(--color-dead)_8%,var(--color-page))] px-3.5 py-3 text-[14px] leading-[22px] text-body"
       >
         {error}
       </p>
     {/if}
+    {#if shown && $conflicts[shown]}
+      <div
+        role="alert"
+        class="mx-auto mt-6 max-[1000px]:mx-7 flex max-w-[680px] flex-wrap items-center gap-x-4 gap-y-2.5 rounded-menu border border-[color-mix(in_srgb,var(--color-busy)_30%,var(--color-page))] bg-[color-mix(in_srgb,var(--color-busy)_7%,var(--color-page))] px-3.5 py-3 text-[14px] leading-[22px] text-body"
+      >
+        <p class="min-w-0 flex-[1_1_320px]">
+          <strong class="font-semibold text-ink">
+            {$conflicts[shown] === "missing"
+              ? "This runbook's file was moved or deleted outside Runbook."
+              : "This runbook was changed outside Runbook since it was last saved here."}
+          </strong>
+          Your unsaved edits are kept until you choose.
+        </p>
+        <span class="flex flex-none gap-2">
+          <button
+            type="button"
+            class="flex h-[30px] items-center rounded-ctl bg-white/8 px-3 text-ui text-ink hover:bg-white/13"
+            onclick={() => shown && void readFromDisk(shown)}
+          >
+            Read changes from disk
+          </button>
+          <button
+            type="button"
+            class="flex h-[30px] items-center rounded-ctl bg-white/8 px-3 text-ui text-ink hover:bg-white/13"
+            onclick={() => shown && void overwrite(shown)}
+          >
+            Overwrite changes on disk
+          </button>
+        </span>
+      </div>
+    {/if}
     {#if shown && $saveErrors[shown]}
       <p
-        class="mx-auto mt-6 max-w-[680px] rounded-menu border border-[color-mix(in_srgb,var(--color-dead)_28%,var(--color-page))] bg-[color-mix(in_srgb,var(--color-dead)_8%,var(--color-page))] px-3.5 py-3 text-[14px] leading-[22px] text-body"
+        class="mx-auto mt-6 max-[1000px]:mx-7 max-w-[680px] rounded-menu border border-[color-mix(in_srgb,var(--color-dead)_28%,var(--color-page))] bg-[color-mix(in_srgb,var(--color-dead)_8%,var(--color-page))] px-3.5 py-3 text-[14px] leading-[22px] text-body"
       >
         <strong class="font-semibold text-ink">Couldn't save this runbook.</strong>
         {$saveErrors[shown]}. Your changes are kept; the next edit tries again.

@@ -1,6 +1,7 @@
 // Runbook storage: the files in the runbooks folder. No Electron imports, so it is
 // tested against real temp folders.
 
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
@@ -19,7 +20,7 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 import { previewOf } from "../shared/preview";
 import { parse, serialize } from "../shared/runbook";
-import type { Cell, Runbook, RunbookSummary } from "../shared/types";
+import type { Cell, DiskState, Runbook, RunbookSummary } from "../shared/types";
 import { isCode } from "./fs";
 import { WELCOME_FILE, WELCOME_RUNBOOK } from "./welcome";
 
@@ -65,17 +66,48 @@ export async function listRunbooks(dir: string): Promise<RunbookSummary[]> {
 
 export async function readRunbook(dir: string, path: unknown): Promise<Runbook> {
   const resolved = resolveRunbookPath(dir, path);
-  return parse(await readText(resolved), resolved);
+  const { text, bytes } = await readText(resolved);
+  known.set(resolved, fingerprint(bytes));
+  return parse(text, resolved);
+}
+
+// What each runbook's file held when this app last read or wrote it, as a hash. The
+// renderer keeps a runbook as first read, so a file changed since by another editor,
+// git or a cell would be overwritten by the next save: instead, the save refuses
+// (SPEC §8). Files never read here (only listed) have no entry and aren't checked.
+const known = new Map<string, string>();
+
+function fingerprint(content: Uint8Array | string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+// How the file compares with what this app last read or wrote.
+async function stateOnDisk(path: string): Promise<DiskState> {
+  const expected = known.get(path);
+  if (expected === undefined) return "same";
+  try {
+    return fingerprint(await readFile(path)) === expected ? "same" : "changed";
+  } catch (error) {
+    if (isCode(error, "ENOENT")) return "missing";
+    throw error;
+  }
+}
+
+export function checkRunbook(dir: string, path: unknown): Promise<DiskState> {
+  return stateOnDisk(resolveRunbookPath(dir, path));
 }
 
 // A runbook's text, refusing a file that isn't UTF-8: read leniently, its other bytes
 // would turn into U+FFFD, and the next save would write those over the original.
 // (The sidebar list still reads such a file leniently: it only shows its title.)
-async function readText(path: string): Promise<string> {
+async function readText(path: string): Promise<{ text: string; bytes: Uint8Array }> {
   const bytes = await readFile(path);
   try {
     // ignoreBOM: keep a BOM in the text, as readFile(…, "utf8") does.
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    return {
+      text: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes),
+      bytes,
+    };
   } catch (cause) {
     throw new Error(
       `${basename(path)} isn't UTF-8 text. Runbook doesn't open it, so it can't damage it.`,
@@ -101,15 +133,27 @@ async function assertWritable(path: string): Promise<void> {
 // Writes in progress per file (see queueWrite).
 const saving = new Map<string, Promise<void>>();
 
+export type SaveResult = { state: "saved"; runbook: Runbook } | { state: "changed" | "missing" };
+
 // Writes the runbook to its file atomically (SPEC §8): to `<file>.tmp`, then renamed
 // over the file, so a crash mid-write never leaves a half-written runbook. The value
-// comes from the renderer, so its path and shape are checked first.
+// comes from the renderer, so its path and shape are checked first. A file changed or
+// removed since this app last read or wrote it isn't written, unless `force`.
 // Resolves with the runbook as saved, for the search index.
-export async function saveRunbook(dir: string, value: unknown): Promise<Runbook> {
+export async function saveRunbook(
+  dir: string,
+  value: unknown,
+  { force = false }: { force?: boolean } = {},
+): Promise<SaveResult> {
   const runbook = toRunbook(value);
   const saved = { ...runbook, path: resolveRunbookPath(dir, runbook.path) };
-  await queueWrite(saved.path, serialize(saved));
-  return saved;
+  let refused: DiskState = "same";
+  await queueWrite(saved.path, async () => {
+    // Inside the queue: a save just before this one has updated what is known.
+    if (!force) refused = await stateOnDisk(saved.path);
+    if (refused === "same") await writeKnown(saved.path, serialize(saved));
+  });
+  return refused === "same" ? { state: "saved", runbook: saved } : { state: refused };
 }
 
 // Creates an empty runbook named after its title (SPEC §8), never overwriting a file.
@@ -117,9 +161,11 @@ export async function createRunbook(dir: string, title: unknown): Promise<Runboo
   const clean = toTitle(title);
   for (const name of await freeNames(dir, clean)) {
     const runbook = emptyRunbook(join(resolve(dir), name), clean);
+    const text = serialize(runbook);
     try {
       // "wx": if the name was taken meanwhile, try the next one.
-      await writeFile(runbook.path, serialize(runbook), { flag: "wx" });
+      await writeFile(runbook.path, text, { flag: "wx" });
+      known.set(runbook.path, fingerprint(text));
       return runbook;
     } catch (error) {
       if (!isCode(error, "EEXIST")) throw error;
@@ -137,7 +183,13 @@ export async function renameRunbook(
 ): Promise<Runbook> {
   const from = resolveRunbookPath(dir, path);
   const title = toTitle(newTitle);
-  const runbook = parse(await readText(from), from);
+  const { text, bytes } = await readText(from);
+  // The window's copy is older than the file: the renamed file would mix the two.
+  const expected = known.get(from);
+  if (expected !== undefined && fingerprint(bytes) !== expected) {
+    throw new Error(`${basename(from)} changed outside Runbook. Reload it before renaming it.`);
+  }
+  const runbook = parse(text, from);
   // Before the file moves: a refused write must leave it where it was.
   await assertWritable(from);
   let to = from;
@@ -151,7 +203,8 @@ export async function renameRunbook(
   // Title and path change together: for a file without frontmatter, serialize()
   // compares the title with the file name.
   const renamed = { ...runbook, path: to, title };
-  await queueWrite(to, serialize(renamed));
+  if (to !== from) known.delete(from);
+  await queueWrite(to, () => writeKnown(to, serialize(renamed)));
   return renamed;
 }
 
@@ -163,6 +216,7 @@ export async function deleteRunbook(
 ): Promise<string> {
   const resolved = resolveRunbookPath(dir, path);
   await trash(resolved);
+  known.delete(resolved);
   return resolved;
 }
 
@@ -233,15 +287,21 @@ function toTitle(value: unknown): string {
 }
 
 // Writes of the same file run one after another, so two never share its temp file.
-async function queueWrite(path: string, text: string): Promise<void> {
+async function queueWrite(path: string, write: () => Promise<void>): Promise<void> {
   const previous = saving.get(path) ?? Promise.resolve();
-  const done = previous.catch(() => {}).then(() => writeAtomically(path, text));
+  const done = previous.catch(() => {}).then(write);
   saving.set(path, done);
   try {
     await done;
   } finally {
     if (saving.get(path) === done) saving.delete(path);
   }
+}
+
+// Writes the file and remembers what it now holds.
+async function writeKnown(path: string, text: string): Promise<void> {
+  await writeAtomically(path, text);
+  known.set(path, fingerprint(text));
 }
 
 async function writeAtomically(path: string, text: string): Promise<void> {

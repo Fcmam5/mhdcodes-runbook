@@ -3,6 +3,7 @@
 import { BrowserWindow, ipcMain, shell } from "electron";
 import type { Settings } from "../shared/types";
 import {
+  checkRunbook,
   createRunbook,
   deleteRunbook,
   listRunbooks,
@@ -21,12 +22,21 @@ export function registerIpc(settings: Settings, sessions: SessionManager): void 
 
   ipcMain.handle("settings:get", () => settings);
   ipcMain.handle("runbooks:list", () => listRunbooks(settings.runbooksDir));
-  ipcMain.handle("runbooks:read", (_event, path: unknown) =>
-    readRunbook(settings.runbooksDir, path),
-  );
-  ipcMain.handle("runbooks:save", async (_event, runbook: unknown) => {
-    index.update(await saveRunbook(settings.runbooksDir, runbook));
+  ipcMain.handle("runbooks:read", async (_event, path: unknown) => {
+    const runbook = await readRunbook(settings.runbooksDir, path);
+    // It may have changed outside the app since it was indexed.
+    index.update(runbook);
+    return runbook;
   });
+  ipcMain.handle("runbooks:check", (_event, path: unknown) =>
+    checkRunbook(settings.runbooksDir, path),
+  );
+  ipcMain.handle("runbooks:save", async (_event, runbook: unknown, force: unknown) => {
+    const result = await saveRunbook(settings.runbooksDir, runbook, { force: force === true });
+    if (result.state === "saved") index.update(result.runbook);
+    return result.state;
+  });
+
   ipcMain.handle("runbooks:create", async (_event, title: unknown) => {
     const created = await createRunbook(settings.runbooksDir, title);
     index.update(created);
