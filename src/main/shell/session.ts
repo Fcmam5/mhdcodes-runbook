@@ -9,6 +9,7 @@ import { spawn, type IPty } from "node-pty";
 import type { CellRunStatus, RunState, SessionEnd, SessionState } from "../../shared/types";
 import { isCode } from "../fs";
 import { MarkerParser, type Marker } from "./markers";
+import { endTree } from "./process-tree";
 
 export interface ShellSessionOptions {
   rcfilePath: string;
@@ -90,7 +91,7 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     // A ~/.bashrc that execs another shell or waits for input never lets us get ready.
     this.readyTimer = setTimeout(() => {
       this.die({ type: "start-failed", output: this.startupOutput });
-      this.pty?.kill();
+      this.kill();
     }, readyTimeoutMs);
     // Like a shell's $?, a shell killed by a signal reports 128 + the signal number.
     this.pty.onExit(({ exitCode, signal }) => this.onExit(signal ? 128 + signal : exitCode));
@@ -153,7 +154,15 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     this.current = null;
     if (run) this.settle(run, "interrupted");
     for (const waiting of this.waiting.splice(0)) this.settle(waiting, "idle");
-    this.pty?.kill();
+    this.kill();
+  }
+
+  // Kills bash and everything still running under it: the command it was running,
+  // and that command's children (SPEC §6.3.8).
+  private kill(): void {
+    if (!this.pty) return;
+    endTree(this.pty.pid);
+    this.pty.kill();
   }
 
   private next(): void {
@@ -290,10 +299,14 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     this.die({ type: "exited", exitCode });
   }
 
-  // Marks the session dead on its own, rejecting the runs still waiting.
+  // Marks the session dead on its own, rejecting the runs still waiting (SPEC §6.3.7).
+  // Each is reported idle first: one shown as queued would otherwise stay queued.
   private die(end: SessionEnd): void {
     const message = end.type === "start-failed" ? "Shell didn't start" : "Shell session ended";
-    for (const waiting of this.waiting.splice(0)) waiting.reject(new Error(message));
+    for (const waiting of this.waiting.splice(0)) {
+      this.emit("status", { cellId: waiting.cellId, state: "idle" });
+      waiting.reject(new Error(message));
+    }
     this.setState("dead", end);
   }
 

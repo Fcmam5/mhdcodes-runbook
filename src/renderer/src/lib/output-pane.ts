@@ -53,8 +53,9 @@ export interface OutputPaneOptions {
 const ROOT_CLASSES = [
   "output-collapsed",
   "overflow-hidden rounded-inset bg-out py-2.5 pr-16 pl-4 shadow-[inset_0_0_0_1px_var(--color-rule-soft)]",
-  // An amber edge while the cell runs; the accent while typing goes to the shell.
+  // An amber edge while the cell runs; the accent while it has the focus, running or not.
   "data-[running=true]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-busy)_38%,var(--color-rule-soft))]",
+  "focus-within:shadow-[inset_0_0_0_1px_var(--color-acc)]",
   "data-[running=true]:focus-within:shadow-[inset_0_0_0_1px_var(--color-acc)]",
 ].join(" ");
 
@@ -74,6 +75,7 @@ export class OutputPane {
   // A trailing newline, written only once more output follows. Output usually ends
   // with one, and writing it would leave the cursor on an empty last row.
   private heldNewline = "";
+  private running = false;
 
   constructor(private readonly options: OutputPaneOptions) {
     this.terminal = new Terminal({
@@ -93,8 +95,10 @@ export class OutputPane {
     this.terminal.onData((data) => this.options.onInput(data));
     // Esc (leave the pane) and Ctrl+. (stop) are the cell's shortcuts (SPEC §9.5), not
     // keys for the shell: xterm ignores them, and they reach the cell's key handler.
+    // Between runs there is no shell to type to, so every key goes on to the page:
+    // Tab moves on, Ctrl+K and Ctrl+N work.
     this.terminal.attachCustomKeyEventHandler(
-      (event) => !(event.key === "Escape" || (event.ctrlKey && event.key === ".")),
+      (event) => this.running && !(event.key === "Escape" || (event.ctrlKey && event.key === ".")),
     );
     this.root.className = ROOT_CLASSES;
     this.root.append(this.host);
@@ -109,6 +113,7 @@ export class OutputPane {
       this.opened = true;
       this.terminal.open(this.host);
       this.resizeObserver.observe(this.host);
+      this.setTabStop();
     }
     // The window may have been resized, or output written, while it was detached.
     this.fitWidth();
@@ -136,8 +141,23 @@ export class OutputPane {
     return { cols: this.terminal.cols, rows: this.maxRows() };
   }
 
+  // A run that ends gives the keyboard back to the cell's Run button: the pane may
+  // have taken it (offerFocus), and nothing typed there reaches a shell any more.
   setRunning(running: boolean): void {
+    const ended = this.running && !running;
+    this.running = running;
     this.root.dataset["running"] = String(running);
+    this.setTabStop();
+    if (ended && this.root.contains(document.activeElement)) {
+      if (this.focusOwner?.isConnected) this.focusOwner.focus();
+      else (document.activeElement as HTMLElement | null)?.blur();
+    }
+  }
+
+  // Only a running cell's pane is a Tab stop: a finished one has nothing to type to.
+  private setTabStop(): void {
+    const input = this.terminal.textarea;
+    if (input) input.tabIndex = this.running ? 0 : -1;
   }
 
   write(data: string): void {

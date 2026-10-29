@@ -151,6 +151,27 @@ describe("readRunbook", () => {
     await expect(readRunbook(dir, join(dir, "ext", "private.md"))).rejects.toThrow();
   });
 
+  it("refuses a file that isn't UTF-8, rather than read it with replaced bytes", async () => {
+    await mkdir(dir);
+    const latin1 = Buffer.from("---\ntitle: Caf\xe9 cr\xe8me\n---\n", "latin1");
+    await writeFile(join(dir, "cafe.md"), latin1);
+    await expect(readRunbook(dir, join(dir, "cafe.md"))).rejects.toThrow("isn't UTF-8 text");
+    await expect(renameRunbook(dir, join(dir, "cafe.md"), "Other")).rejects.toThrow(
+      "isn't UTF-8 text",
+    );
+    expect(await readFile(join(dir, "cafe.md"))).toEqual(latin1);
+    // Still listed, so it doesn't seem to vanish.
+    expect((await listRunbooks(dir)).map((summary) => summary.path)).toEqual([
+      join(dir, "cafe.md"),
+    ]);
+  });
+
+  it("keeps a byte order mark in the text, as before", async () => {
+    await mkdir(dir);
+    await writeFile(join(dir, "bom.md"), "\uFEFFHello\n");
+    expect((await readRunbook(dir, join(dir, "bom.md"))).cells[0]?.source).toContain("Hello");
+  });
+
   it("refuses a path outside the folder without reading it", async () => {
     await mkdir(dir);
     const outside = join(root, "outside.md");
@@ -223,6 +244,16 @@ describe("saveRunbook", () => {
     await chmod(runbook.path, 0o600);
     await saveRunbook(dir, { ...runbook, title: "Private" });
     expect((await stat(runbook.path)).mode & 0o777).toBe(0o600);
+  });
+
+  it("refuses to overwrite a read-only file", async () => {
+    const runbook = await opened();
+    await chmod(runbook.path, 0o444);
+    await expect(saveRunbook(dir, { ...runbook, title: "Changed" })).rejects.toThrow(
+      "notes.md is read-only",
+    );
+    expect(await readFile(runbook.path, "utf8")).toBe(TEXT);
+    expect(await readdir(dir)).toEqual(["notes.md"]);
   });
 
   it("ends with the last of several overlapping saves", async () => {
@@ -327,6 +358,14 @@ describe("renameRunbook", () => {
     expect(await readFile(renamed.path, "utf8")).toBe(
       "---\ntitle: Brand new # comment\ntags: [a]\n---\n\nBody\n",
     );
+  });
+
+  it("refuses to rename a read-only file, leaving it where it was", async () => {
+    const path = await file("old.md", "---\ntitle: Old\n---\n");
+    await chmod(path, 0o444);
+    await expect(renameRunbook(dir, path, "New")).rejects.toThrow("old.md is read-only");
+    expect(await readdir(dir)).toEqual(["old.md"]);
+    expect(await readFile(path, "utf8")).toBe("---\ntitle: Old\n---\n");
   });
 
   it("gives a file without frontmatter one with the new title", async () => {

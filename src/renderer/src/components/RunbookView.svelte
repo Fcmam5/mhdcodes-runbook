@@ -11,6 +11,7 @@
   import { editedLabel } from "../state/edited";
   import { startupExcerpt } from "../state/startup-excerpt";
   import type { CellType, Runbook } from "../../../shared/types";
+  import { refocus } from "../lib/focus";
   import { now, runbooks } from "../lib/runbooks";
   import { runs } from "../lib/runs";
   import AddCell from "./AddCell.svelte";
@@ -59,13 +60,19 @@
   }
 
   // From the keyboard, the cell that takes a deleted one's place gets the focus, so
-  // several can be deleted in a row.
+  // several can be deleted in a row; after the last one, the empty runbook's "+ Markdown".
   async function removeCell(cellId: string, index: number): Promise<void> {
     const focused = article?.querySelectorAll("[data-cell]")[index]?.contains(document.activeElement);
     edit((current) => deleteCell(current, cellId));
     if (!focused) return;
     await tick();
-    focusCell(Math.min(index, runbook.cells.length - 1));
+    if (runbook.cells.length === 0) void refocus("start", { force: true });
+    else focusCell(Math.min(index, runbook.cells.length - 1));
+  }
+
+  // A dismissed notice had the focus on its button: put it on the title below.
+  function dismissed(): void {
+    void refocus("title");
   }
 
   // The gap above the cell at `index` (index > 0), filled by the "+ Markdown / + Shell"
@@ -104,7 +111,10 @@
   {#if end}
     <SessionNotice
       details={end.type === "start-failed" ? startupExcerpt(end.output) : ""}
-      ondismiss={() => runs.dismissEnd(runbook.path)}
+      ondismiss={() => {
+        runs.dismissEnd(runbook.path);
+        dismissed();
+      }}
     >
       {#if end.type === "start-failed"}
         <strong>Shell didn't start.</strong> Your <code>~/.bashrc</code> may exec another shell or
@@ -116,7 +126,13 @@
     </SessionNotice>
   {/if}
   {#if restartError}
-    <SessionNotice details="" ondismiss={() => (restartError = null)}>
+    <SessionNotice
+      details=""
+      ondismiss={() => {
+        restartError = null;
+        dismissed();
+      }}
+    >
       <strong>Couldn't restart the session.</strong> {restartError}
     </SessionNotice>
   {/if}
@@ -140,6 +156,7 @@
     <InlineEdit
       value={runbook.title}
       label="Title"
+      focusKey="title"
       textClass="text-[32px] leading-10 font-[650] tracking-[-0.02em] max-[1000px]:text-[26px] max-[1000px]:leading-8"
       oncommit={(title) => {
         if (title.trim() !== "" && title.trim() !== runbook.title) onrename(title);
@@ -152,6 +169,7 @@
     <InlineEdit
       value={runbook.tags.join(", ")}
       label="Tags"
+      focusKey="tags"
       placeholder="Comma-separated, e.g. audio, pipewire"
       textClass="text-[14px] leading-5"
       oncommit={(text) => edit((current) => setTags(current, text))}
@@ -204,6 +222,7 @@
         <button
           type="button"
           class="flex h-[34px] items-center gap-1.5 rounded-row bg-white/8 pr-3.5 pl-3 text-ui text-ink hover:bg-white/13"
+          data-focus-key="start"
           onclick={() => add("markdown", 0)}
         >
           <Icon name="plus" size={14} />Markdown

@@ -1,9 +1,22 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
+import {
+  HighlightStyle,
+  StreamLanguage,
+  syntaxHighlighting,
+  syntaxTree,
+} from "@codemirror/language";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
-import { EditorState, Prec, type Extension } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { EditorState, Prec, RangeSetBuilder, type Extension } from "@codemirror/state";
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  keymap,
+  lineNumbers,
+  ViewPlugin,
+  type ViewUpdate,
+} from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { Attachment } from "svelte/attachments";
 
@@ -41,12 +54,57 @@ const shellTheme = EditorView.theme({
   },
 });
 
-// A markdown cell while it is edited reads like the rendered prose: 16/28, the same font.
+// A markdown cell while it is edited reads like the rendered prose (app.css .markdown),
+// so its text doesn't move (SPEC §9.3): 16/28 in the same font, wrapped at the prose's
+// 66ch, and headings at their rendered sizes.
 const markdownTheme = EditorView.theme({
   ".cm-scroller": { fontFamily: "var(--font-sans)", fontSize: "16px", lineHeight: "28px" },
-  ".cm-content": { padding: "0", color: "var(--color-body)" },
+  ".cm-content": { padding: "0", color: "var(--color-body)", maxWidth: "66ch" },
   ".cm-line": { padding: "0" },
+  ".cm-md-h1": { fontSize: "24px", lineHeight: "32px", letterSpacing: "-0.015em" },
+  ".cm-md-h2": { fontSize: "20px", lineHeight: "28px", letterSpacing: "-0.01em" },
+  ".cm-md-h3": { fontSize: "17px" },
 });
+
+// Marks the lines of each heading (# or underlined) with its level, for the sizes above.
+function headingLines(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  const { doc } = view.state;
+  for (const { from, to } of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from,
+      to,
+      enter: (node) => {
+        const level = /^(?:ATX|Setext)Heading([1-3])$/.exec(node.name)?.[1];
+        if (!level) return;
+        // An underlined heading spans its text and the === line; only the text is sized.
+        const line = doc.lineAt(node.from);
+        builder.add(line.from, line.from, Decoration.line({ class: `cm-md-h${level}` }));
+        return false;
+      },
+    });
+  }
+  return builder.finish();
+}
+
+const markdownHeadings = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = headingLines(view);
+    }
+    update(update: ViewUpdate): void {
+      if (
+        update.docChanged ||
+        update.viewportChanged ||
+        syntaxTree(update.startState) !== syntaxTree(update.state)
+      ) {
+        this.decorations = headingLines(update.view);
+      }
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 
 // Command colours, as in the design: commands blue, flags gold, strings green,
 // operators faint. Shell's legacy mode tags builtins and flags; other commands stay ink.
@@ -93,6 +151,7 @@ const shellExtensions = [
 
 const markdownExtensions = [
   markdown(),
+  markdownHeadings,
   EditorView.lineWrapping,
   markdownTheme,
   syntaxHighlighting(markdownHighlight),

@@ -77,6 +77,15 @@ async function sendWhenStarted(
   manager.sendInput(RUNBOOK, data);
 }
 
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function exists(path: string): Promise<boolean> {
   return access(path).then(
     () => true,
@@ -395,6 +404,20 @@ describe.concurrent("SessionManager with real bash", () => {
     expect(outputOf("c2")).toBe("again\n");
   });
 
+  it("rejects the runs queued behind an exit, reporting each idle rather than queued", async ({
+    manager,
+    events: { statuses },
+  }) => {
+    const exiting = manager.run(RUNBOOK, "c1", "sleep 0.2; exit 3");
+    const queued = manager.run(RUNBOOK, "c2", "echo never");
+    await expect(queued).rejects.toThrow("Shell session ended");
+    expect(await exiting).toMatchObject({ state: "failed", exitCode: 3 });
+    expect(statuses.filter((status) => status.cellId === "c2").map((s) => s.state)).toEqual([
+      "queued",
+      "idle",
+    ]);
+  });
+
   it("isn't stalled by a cell printing another program's OSC 777 sequence", async ({ manager }) => {
     const status = await manager.run(RUNBOOK, "c1", String.raw`printf '\e]777;notify;hi\e\\'`);
     expect(status).toMatchObject({ state: "success" });
@@ -478,6 +501,31 @@ describe.concurrent("SessionManager with real bash", () => {
     expect(states).not.toContain("dead");
     expect(ends).toEqual([]);
     expect(states.slice(-4)).toEqual(["starting", "ready", "busy", "ready"]);
+  });
+
+  it("ends the running command and its children with the shell, on restart and close", async ({
+    root,
+    manager,
+  }) => {
+    const pidsOf = async (file: string): Promise<number[]> =>
+      (await readFile(join(root, file), "utf8")).split(/\s+/).filter(Boolean).map(Number);
+    // A foreground command, and one that waits on a child of its own.
+    for (const [i, end] of [
+      [1, () => manager.restart(RUNBOOK)],
+      [2, () => manager.close(RUNBOOK)],
+    ] as const) {
+      const running = manager.run(
+        RUNBOOK,
+        `c${i}`,
+        `sh -c 'sleep 30 & echo $$ $! > pids${i}; wait'`,
+      );
+      await vi.waitFor(async () => expect(await pidsOf(`pids${i}`)).toHaveLength(2));
+      const pids = await pidsOf(`pids${i}`);
+      expect(pids.every(alive)).toBe(true);
+      await end();
+      expect(await running).toMatchObject({ state: "interrupted" });
+      await vi.waitFor(() => expect(pids.filter(alive)).toEqual([]), { timeout: 3000 });
+    }
   });
 
   it("starts a session on restart even if there was none", async ({

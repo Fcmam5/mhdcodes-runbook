@@ -3,20 +3,25 @@
 
   // Text shown as-is until clicked, then edited in place (SPEC §9.3: title and tags).
   // Enter or clicking away keeps the change; Esc drops it. The field takes the shown
-  // text's size, so nothing moves when editing starts.
+  // text's size, so nothing moves when editing starts. After Enter or Esc the keyboard
+  // is back on the text; `focusKey` marks it for whoever has to put it back later.
   interface Props {
     value: string;
     label: string;
     placeholder?: string;
     textClass?: string; // the size and weight of both the text and the field
     oncommit: (value: string) => void;
+    focusKey?: string;
     children: Snippet;
   }
 
-  const { value, label, placeholder = "", textClass = "", oncommit, children }: Props = $props();
+  const { value, label, placeholder = "", textClass = "", oncommit, focusKey, children }: Props =
+    $props();
 
   let editing = $state(false);
   let draft = $state("");
+  // Left from the keyboard: the text takes the focus back when it is shown again.
+  let refocus = false;
 
   function start(): void {
     draft = value;
@@ -33,6 +38,11 @@
     input.focus();
     input.select();
   };
+
+  const focusIfLeftByKeyboard = (button: HTMLButtonElement): void => {
+    if (refocus) button.focus();
+    refocus = false;
+  };
 </script>
 
 {#if editing}
@@ -47,8 +57,12 @@
     {@attach focusAndSelect}
     onblur={() => finish(true)}
     onkeydown={(event) => {
-      if (event.key === "Enter") finish(true);
-      if (event.key === "Escape") finish(false);
+      if (event.key !== "Enter" && event.key !== "Escape") return;
+      // The text takes the focus back at once: unprevented, this Enter would go on to
+      // click it and start editing again.
+      event.preventDefault();
+      refocus = true;
+      finish(event.key === "Enter");
     }}
   />
 {:else}
@@ -59,6 +73,8 @@
       textClass,
     ]}
     title={`Edit ${label.toLowerCase()}`}
+    data-focus-key={focusKey}
+    {@attach focusIfLeftByKeyboard}
     onclick={start}
   >
     {@render children()}

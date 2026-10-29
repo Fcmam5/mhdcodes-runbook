@@ -1,7 +1,9 @@
 // Runbook storage: the files in the runbooks folder. No Electron imports, so it is
 // tested against real temp folders.
 
+import { constants } from "node:fs";
 import {
+  access,
   link,
   lstat,
   mkdir,
@@ -14,7 +16,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { previewOf } from "../shared/preview";
 import { parse, serialize } from "../shared/runbook";
 import type { Cell, Runbook, RunbookSummary } from "../shared/types";
@@ -63,7 +65,37 @@ export async function listRunbooks(dir: string): Promise<RunbookSummary[]> {
 
 export async function readRunbook(dir: string, path: unknown): Promise<Runbook> {
   const resolved = resolveRunbookPath(dir, path);
-  return parse(await readFile(resolved, "utf8"), resolved);
+  return parse(await readText(resolved), resolved);
+}
+
+// A runbook's text, refusing a file that isn't UTF-8: read leniently, its other bytes
+// would turn into U+FFFD, and the next save would write those over the original.
+// (The sidebar list still reads such a file leniently: it only shows its title.)
+async function readText(path: string): Promise<string> {
+  const bytes = await readFile(path);
+  try {
+    // ignoreBOM: keep a BOM in the text, as readFile(…, "utf8") does.
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch (cause) {
+    throw new Error(
+      `${basename(path)} isn't UTF-8 text. Runbook doesn't open it, so it can't damage it.`,
+      { cause },
+    );
+  }
+}
+
+// A read-only file stays as it is: the atomic write and the rename below would
+// otherwise replace it, as they need only the folder to be writable.
+async function assertWritable(path: string): Promise<void> {
+  try {
+    await access(path, constants.W_OK);
+  } catch (error) {
+    if (isCode(error, "ENOENT")) return;
+    if (isCode(error, "EACCES") || isCode(error, "EPERM") || isCode(error, "EROFS")) {
+      throw new Error(`${basename(path)} is read-only`, { cause: error });
+    }
+    throw error;
+  }
 }
 
 // Writes in progress per file (see queueWrite).
@@ -105,7 +137,9 @@ export async function renameRunbook(
 ): Promise<Runbook> {
   const from = resolveRunbookPath(dir, path);
   const title = toTitle(newTitle);
-  const runbook = parse(await readFile(from, "utf8"), from);
+  const runbook = parse(await readText(from), from);
+  // Before the file moves: a refused write must leave it where it was.
+  await assertWritable(from);
   let to = from;
   for (const name of await freeNames(dir, title, from)) {
     const candidate = join(resolve(dir), name);
@@ -214,6 +248,7 @@ async function writeAtomically(path: string, text: string): Promise<void> {
   // Renaming onto a symlink would replace the link with a plain file, so write next
   // to the file it points to. A file that doesn't exist yet is written where it is.
   const target = await realpath(path).catch(() => path);
+  await assertWritable(target);
   const mode = await stat(target).then(
     (info) => info.mode & 0o777,
     () => 0o644,

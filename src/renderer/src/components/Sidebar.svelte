@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { RunbookSummary, SearchResult } from "../../../shared/types";
+  import { refocus, rowKey } from "../lib/focus";
   import { runs } from "../lib/runs";
   import { aroundMatch, highlight } from "../state/highlight";
   import Icon from "./Icon.svelte";
@@ -12,9 +13,10 @@
     folder: string; // the runbooks folder, shown at the bottom
     selected: string | null;
     onselect: (path: string) => void;
-    // Each resolves false if it failed (the error is shown elsewhere), so the input stays.
+    // Each resolves false (null) if it failed (the error is shown elsewhere), so the
+    // input stays. onrename resolves with the runbook's new path.
     oncreate: (title: string) => Promise<boolean>;
-    onrename: (path: string, title: string) => Promise<boolean>;
+    onrename: (path: string, title: string) => Promise<string | null>;
     ondelete: (path: string) => void;
     onreveal: (path: string) => void;
   }
@@ -74,15 +76,26 @@
     searchInput?.select();
   }
 
-  // Ctrl+N: the same inline input as "+ New". It takes the focus when it appears.
+  // Ctrl+N: the same inline input as "+ New". It takes the focus when it appears, and
+  // Esc gives it back to where it was.
   export function startCreate(): void {
+    const active = document.activeElement;
+    beforeCreate = active instanceof HTMLElement && active !== document.body ? active : null;
     search("");
     creating = true;
+  }
+
+  function cancelCreate(): void {
+    creating = false;
+    newTitle = "";
+    if (beforeCreate?.isConnected) beforeCreate.focus();
+    else void refocus("new-runbook");
   }
 
   // "+ New" shows an inline title input (SPEC §9.2).
   let creating = $state(false);
   let newTitle = $state("");
+  let beforeCreate: HTMLElement | null = null;
   // The item whose title is being renamed inline.
   let renaming: string | null = $state(null);
   let renameTitle = $state("");
@@ -125,12 +138,17 @@
     if (renaming !== runbook.path) return;
     if (title === "" || title === runbook.title) {
       renaming = null;
+      void refocus(rowKey(runbook.path));
       return;
     }
     if (busy) return;
     busy = true;
     try {
-      if (await onrename(runbook.path, title)) renaming = null;
+      const moved = await onrename(runbook.path, title);
+      if (moved !== null) {
+        renaming = null;
+        void refocus(rowKey(moved));
+      }
     } finally {
       busy = false;
     }
@@ -195,6 +213,7 @@
       ]}
       aria-current={path === selected ? "page" : undefined}
       title={title}
+      data-focus-key={rowKey(path)}
       onclick={() => onselect(path)}
       oncontextmenu={(event) => {
         event.preventDefault();
@@ -294,6 +313,7 @@
       class="grid size-7 place-items-center rounded-ctl text-muted hover:bg-raise hover:text-ink"
       title="New runbook (Ctrl+N)"
       aria-label="New runbook"
+      data-focus-key="new-runbook"
       onclick={startCreate}
     >
       <Icon name="plus" />
@@ -313,11 +333,12 @@
         bind:value={newTitle}
         {@attach focusAndSelect}
         onkeydown={(event) => {
-          if (event.key === "Enter") void submitNew();
-          if (event.key === "Escape") {
-            creating = false;
-            newTitle = "";
+          // Prevented: the focus may move to a button before this Enter's click lands.
+          if (event.key === "Enter") {
+            event.preventDefault();
+            void submitNew();
           }
+          if (event.key === "Escape") cancelCreate();
         }}
         onblur={() => {
           if (newTitle.trim() === "") creating = false;
@@ -343,8 +364,14 @@
             bind:value={renameTitle}
             {@attach focusAndSelect}
             onkeydown={(event) => {
-              if (event.key === "Enter") void submitRename(runbook);
-              if (event.key === "Escape") renaming = null;
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void submitRename(runbook);
+              }
+              if (event.key === "Escape") {
+                renaming = null;
+                void refocus(rowKey(runbook.path));
+              }
             }}
             onblur={() => void submitRename(runbook)}
           />

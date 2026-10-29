@@ -6,6 +6,7 @@
   import { runbooks as openRunbooks } from "./lib/runbooks";
   import { previewOf } from "../../shared/preview";
   import { claimPath, forgetRuns, renameRuns } from "./lib/runs";
+  import { refocus, rowKey } from "./lib/focus";
 
   const saveErrors = openRunbooks.errors;
   const savedAt = openRunbooks.savedAt;
@@ -17,11 +18,13 @@
   let error: string | null = $state(null);
   let sidebar: ReturnType<typeof Sidebar> | undefined = $state();
 
-  // Window-wide shortcuts (SPEC §9.5). Not inside an output pane: there Ctrl+N and
-  // Ctrl+K are bash's own keys (previous command, kill to end of line).
+  // Window-wide shortcuts (SPEC §9.5). Not inside a running cell's output pane: there
+  // Ctrl+N and Ctrl+K are bash's own keys (previous command, kill to end of line).
   function onkeydown(event: KeyboardEvent): void {
     const ctrl = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey;
-    if (!ctrl || (event.target instanceof Element && event.target.closest(".xterm"))) return;
+    const inShell =
+      event.target instanceof Element && event.target.closest('[data-running="true"] .xterm');
+    if (!ctrl || inShell) return;
     const key = event.key.toLowerCase();
     if (key === "n") sidebar?.startCreate();
     else if (key === "k") sidebar?.focusSearch();
@@ -102,6 +105,8 @@
       ]);
       error = null;
       await open(created.path);
+      // The keyboard moves from the sidebar's input to the new runbook.
+      void refocus("start", { force: true });
       return true;
     } catch (cause) {
       error = messageOf(cause);
@@ -110,8 +115,8 @@
   }
 
   // Renames the file after the title and updates the title (SPEC §8); from the sidebar
-  // and from the runbook's own title.
-  async function rename(path: string, title: string): Promise<boolean> {
+  // and from the runbook's own title. Resolves with the new path, or null if it failed.
+  async function rename(path: string, title: string): Promise<string | null> {
     try {
       const moved = await openRunbooks.rename(path, () => window.api.renameRunbook(path, title));
       // Right away, before awaiting anything: main has already moved the session, and
@@ -127,10 +132,10 @@
       if (selected === path) selected = moved.path;
       if (shown === path) shown = moved.path;
       error = null;
-      return true;
+      return moved.path;
     } catch (cause) {
       error = messageOf(cause);
-      return false;
+      return null;
     }
   }
 
@@ -150,6 +155,8 @@
         const [next] = runbooks;
         if (next) await open(next.path);
       }
+      // The deleted row had the focus (its menu gives it back to the row).
+      void refocus(selected === null ? "new-runbook" : rowKey(selected));
     } catch (cause) {
       error = messageOf(cause);
     }
@@ -214,7 +221,15 @@
     {/if}
     {#if runbook}
       {#key runbook.path}
-        <RunbookView {runbook} {mtime} onrename={(title) => void rename(runbook.path, title)} />
+        <RunbookView
+          {runbook}
+          {mtime}
+          onrename={(title) =>
+            // The view is new for the new path: the title's focus goes to the new one.
+            void rename(runbook.path, title).then((moved) => {
+              if (moved !== null) void refocus("title");
+            })}
+        />
       {/key}
     {:else if runbooks.length === 0 && runbooksDir}
       <p class="py-12 text-center text-[14px] text-faint">No runbooks in {runbooksDir}</p>

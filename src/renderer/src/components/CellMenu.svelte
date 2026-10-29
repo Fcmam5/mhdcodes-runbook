@@ -3,7 +3,8 @@
   import Menu, { type MenuItem } from "./Menu.svelte";
 
   // A cell's ⋮ button and its menu (SPEC §9.3). Closes on a choice, Esc, or a click
-  // outside it; Esc gives the focus back to the button.
+  // outside it; a choice or Esc gives the focus back to the button (a deleted cell's
+  // place is then taken by the next cell, see RunbookView).
   const { items }: { items: MenuItem[] } = $props();
 
   let open = $state(false);
@@ -44,7 +45,13 @@
   </button>
   {#if open}
     <div class="absolute top-[34px] right-0 z-20">
-      <Menu {items} onchoose={() => (open = false)} />
+      <Menu
+        {items}
+        onchoose={() => {
+          open = false;
+          button?.focus();
+        }}
+      />
     </div>
   {/if}
 </div>

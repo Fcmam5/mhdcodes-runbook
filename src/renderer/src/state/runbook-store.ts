@@ -5,6 +5,7 @@
 
 import { writable, type Readable } from "svelte/store";
 import type { Runbook } from "../../../shared/types";
+import { messageOf } from "./errors";
 
 export interface RunbookStoreOptions {
   save: (runbook: Runbook) => Promise<void>;
@@ -76,7 +77,7 @@ export function createRunbookStore({
     } catch (cause) {
       // Still unsaved: the next edit or flush tries again.
       unsaved.add(path);
-      setError(path, cause instanceof Error ? cause.message : String(cause));
+      setError(path, messageOf(cause));
       throw cause;
     }
   }
