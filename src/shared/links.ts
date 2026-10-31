@@ -1,4 +1,4 @@
-// Only http: and https: links leave the app, opened in the system browser (SPEC §9.3).
+// Only http: and https: links leave the app, opened in the system browser.
 // Everything else, including relative links and file:, is ignored.
 export function externalUrl(href: string | null | undefined): string | null {
   if (!href) return null;

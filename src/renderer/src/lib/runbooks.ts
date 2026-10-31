@@ -14,7 +14,7 @@ export const now = readable(Date.now(), (set) => {
   return () => clearInterval(timer);
 });
 
-// Before the window closes, save what is still waiting for its 500 ms (SPEC §8).
+// Before the window closes, save what is still waiting for its 500 ms.
 export function saveOnClose(): void {
   window.api.onFlushRequest(() => runbooks.flushAll());
 }

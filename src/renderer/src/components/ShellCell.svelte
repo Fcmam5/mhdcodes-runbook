@@ -22,7 +22,7 @@
     $props();
 
   // Created once: it owns its document and reports edits, which come back as cell.source.
-  // Its shortcuts run before CodeMirror's own keys (SPEC §9.5).
+  // Its shortcuts run before CodeMirror's own keys.
   const editor = shellEditor({
     initial: untrack(() => cell.source),
     onChange: (source) => onchange(source),
@@ -40,7 +40,7 @@
   let runButton: HTMLButtonElement | undefined = $state();
   let paneSlot: HTMLElement | null = null;
 
-  // Lives in the run store, so it survives switching runbooks (SPEC §6.6).
+  // Lives in the run store, so it survives switching runbooks.
   const run = $derived($runs[runbookPath]?.cells[cell.id] ?? NO_CELL_RUN);
   const line = $derived(run.status ? statusLine(run.status) : null);
   const active = $derived(isActive(run));
@@ -82,7 +82,7 @@
     if (handled) event.preventDefault();
   }
 
-  // Copy output (SPEC §9.3): the pane's text to the clipboard. The button shows
+  // Copy output: the pane's text to the clipboard. The button shows
   // a tick for a moment so the copy is visible.
   let copied = $state(false);
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -117,7 +117,7 @@
   };
 </script>
 
-<!-- One card per cell (SPEC §9.3): header, command, status, output. -->
+<!-- One card per cell: header, command, status, output. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class={[

@@ -1,5 +1,5 @@
 // What the renderer knows about runs and sessions, per runbook path, as a Svelte store
-// (SPEC §6.6). It lives outside the components, so it survives switching runbooks and
+//. It lives outside the components, so it survives switching runbooks and
 // keeps taking events for runbooks that aren't shown. Pure: tested in plain Node.
 
 import { get, writable, type Readable } from "svelte/store";

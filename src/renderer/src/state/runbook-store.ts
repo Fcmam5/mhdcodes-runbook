@@ -1,4 +1,4 @@
-// The runbooks open in the window, as a Svelte store, with autosave (SPEC §8): a
+// The runbooks open in the window, as a Svelte store, with autosave: a
 // change is saved 500 ms after the last edit, or at once on flush (runbook switch,
 // window close). Each runbook is kept as first opened, so its cell IDs stay stable
 // for the run store (see App.svelte). Pure apart from the injected save: tested in Node.

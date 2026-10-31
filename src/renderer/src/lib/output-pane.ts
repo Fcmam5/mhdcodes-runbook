@@ -1,10 +1,10 @@
-// A shell cell's output pane (SPEC §9.3): an xterm that grows with its output up to
+// A shell cell's output pane: an xterm that grows with its output up to
 // 400 px and then scrolls. While there is no output it is collapsed (the
 // `output-collapsed` class), not display: none, because xterm can't measure its font
 // in an element that isn't rendered, and the pane's size is needed before a run starts.
 //
 // A pane outlives its cell component: while its runbook isn't shown, it is detached
-// from the page and keeps taking output (SPEC §6.6), then is attached again on return.
+// from the page and keeps taking output, then is attached again on return.
 
 import { FitAddon } from "@xterm/addon-fit";
 import { type ITheme, Terminal } from "@xterm/xterm";
@@ -12,7 +12,7 @@ import "@xterm/xterm/css/xterm.css";
 
 const MAX_HEIGHT_PX = 400;
 
-// The Graphite terminal theme (SPEC §9.4): the output panel's colour, soft
+// The Graphite terminal theme: the output panel's colour, soft
 // ANSI colours that stay readable on it, and the accent for selections.
 const THEME: ITheme = {
   background: "#111113",
@@ -93,7 +93,7 @@ export class OutputPane {
     this.terminal.onWriteParsed(() => this.fitHeight());
     // Ctrl+C arrives here as "\x03" too: in the pane it goes to the shell, not to copy.
     this.terminal.onData((data) => this.options.onInput(data));
-    // Esc (leave the pane) and Ctrl+. (stop) are the cell's shortcuts (SPEC §9.5), not
+    // Esc (leave the pane) and Ctrl+. (stop) are the cell's shortcuts, not
     // keys for the shell: xterm ignores them, and they reach the cell's key handler.
     // Between runs there is no shell to type to, so every key goes on to the page:
     // Tab moves on, Ctrl+K and Ctrl+N work.

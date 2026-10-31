@@ -24,12 +24,12 @@ export interface EditorOptions {
   initial: string; // the document the editor starts with; later edits come from the user
   onChange: (source: string) => void;
   autofocus?: boolean;
-  // Cell shortcuts (SPEC §9.5) by CodeMirror key name, e.g. "Shift-Enter". They come
+  // Cell shortcuts by CodeMirror key name, e.g. "Shift-Enter". They come
   // before the editor's own bindings, so Shift+Enter runs instead of adding a line.
   shortcuts?: Record<string, () => void>;
 }
 
-// The Graphite design (SPEC §9.4). `dark: true` switches CodeMirror's base
+// The Graphite design. `dark: true` switches CodeMirror's base
 // theme to its dark variant. The editors use the browser's own caret and selection
 // (no drawSelection), so the caret is coloured with caret-color.
 const baseTheme = EditorView.theme(
@@ -55,7 +55,7 @@ const shellTheme = EditorView.theme({
 });
 
 // A markdown cell while it is edited reads like the rendered prose (app.css .markdown),
-// so its text doesn't move (SPEC §9.3): 16/28 in the same font, wrapped at the prose's
+// so its text doesn't move: 16/28 in the same font, wrapped at the prose's
 // 66ch, and headings at their rendered sizes.
 const markdownTheme = EditorView.theme({
   ".cm-scroller": { fontFamily: "var(--font-sans)", fontSize: "16px", lineHeight: "28px" },
@@ -157,7 +157,7 @@ const markdownExtensions = [
   syntaxHighlighting(markdownHighlight),
 ];
 
-// A shell cell's editor (SPEC §9.3): always shown, bash highlighting.
+// A shell cell's editor: always shown, bash highlighting.
 export function shellEditor(options: EditorOptions): Attachment<HTMLElement> {
   return editor(options, shellExtensions);
 }

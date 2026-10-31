@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-// The rcfile every session starts with (SPEC §6.2, which explains its shape).
+// The rcfile every session starts with.
 // Keep it verbatim: each line is there for a reason verified against real bash.
 export const RCFILE = String.raw`# Load the user's normal environment
 [ -f ~/.profile ] && source ~/.profile

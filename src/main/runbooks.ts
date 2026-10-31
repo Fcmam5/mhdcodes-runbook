@@ -74,7 +74,7 @@ export async function readRunbook(dir: string, path: unknown): Promise<Runbook> 
 // What each runbook's file held when this app last read or wrote it, as a hash. The
 // renderer keeps a runbook as first read, so a file changed since by another editor,
 // git or a cell would be overwritten by the next save: instead, the save refuses
-// (SPEC §8). Files never read here (only listed) have no entry and aren't checked.
+//. Files never read here (only listed) have no entry and aren't checked.
 const known = new Map<string, string>();
 
 function fingerprint(content: Uint8Array | string): string {
@@ -135,7 +135,7 @@ const saving = new Map<string, Promise<void>>();
 
 export type SaveResult = { state: "saved"; runbook: Runbook } | { state: "changed" | "missing" };
 
-// Writes the runbook to its file atomically (SPEC §8): to `<file>.tmp`, then renamed
+// Writes the runbook to its file atomically: to `<file>.tmp`, then renamed
 // over the file, so a crash mid-write never leaves a half-written runbook. The value
 // comes from the renderer, so its path and shape are checked first. A file changed or
 // removed since this app last read or wrote it isn't written, unless `force`.
@@ -156,7 +156,7 @@ export async function saveRunbook(
   return refused === "same" ? { state: "saved", runbook: saved } : { state: refused };
 }
 
-// Creates an empty runbook named after its title (SPEC §8), never overwriting a file.
+// Creates an empty runbook named after its title, never overwriting a file.
 export async function createRunbook(dir: string, title: unknown): Promise<Runbook> {
   const clean = toTitle(title);
   for (const name of await freeNames(dir, clean)) {
@@ -208,7 +208,7 @@ export async function renameRunbook(
   return renamed;
 }
 
-// Moves the runbook to the OS trash (SPEC §7). `trash` is Electron's shell.trashItem.
+// Moves the runbook to the OS trash. `trash` is Electron's shell.trashItem.
 export async function deleteRunbook(
   dir: string,
   path: unknown,
@@ -359,7 +359,7 @@ function toCell(value: unknown): Cell | null {
 }
 
 // Every path from the renderer must point to a .md file inside the runbooks folder
-// (SPEC §7). Only files directly inside it count, the same ones listRunbooks shows:
+//. Only files directly inside it count, the same ones listRunbooks shows:
 // a deeper path could pass through a symlinked folder that leads anywhere on disk.
 // Returns the resolved path, or throws.
 export function resolveRunbookPath(dir: string, path: unknown): string {

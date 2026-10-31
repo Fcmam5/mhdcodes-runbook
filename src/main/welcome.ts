@@ -1,4 +1,4 @@
-// The sample runbook written to an empty runbooks folder on first launch (SPEC §8).
+// The sample runbook written to an empty runbooks folder on first launch.
 export const WELCOME_FILE = "Welcome.md";
 
 export const WELCOME_RUNBOOK = `---

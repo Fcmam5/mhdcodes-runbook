@@ -1,5 +1,5 @@
 // The start of a shell's startup output, as plain text, for the "Shell didn't start"
-// notice (SPEC §6.3.1). Pure, so it is unit tested.
+// notice. Pure, so it is unit tested.
 
 // CSI sequences (colours, cursor moves), OSC sequences (titles), and other two-byte escapes.
 // oxlint-disable-next-line no-control-regex -- matching escape sequences is the point

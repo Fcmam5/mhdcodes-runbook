@@ -1,4 +1,4 @@
-// Coalesces cell output before it goes over IPC (SPEC §11): a noisy command would
+// Coalesces cell output before it goes over IPC: a noisy command would
 // otherwise send thousands of tiny messages. Each cell's output is forwarded at most
 // once per interval, in one piece. No Electron imports.
 

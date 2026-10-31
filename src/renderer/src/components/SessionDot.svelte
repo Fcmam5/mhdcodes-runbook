@@ -1,7 +1,7 @@
 <script module lang="ts">
   import type { SessionState } from "../../../shared/types";
 
-  // SPEC §9.3: grey = no session yet, green = ready, amber = busy, red = dead. A session
+  // grey = no session yet, green = ready, amber = busy, red = dead. A session
   // that is still starting can't run anything yet, so it shows as busy.
   export const SESSION_LOOKS: Record<SessionState | "none", { colour: string; label: string }> = {
     none: { colour: "bg-idle", label: "No session yet" },

@@ -13,9 +13,9 @@
 
   const { source, autoEdit = false, onchange, ondelete }: Props = $props();
 
-  // Rendered by default; click or Enter edits, Esc or clicking outside renders again (SPEC §9.3).
+  // Rendered by default; click or Enter edits, Esc or clicking outside renders again.
   let editing = $state(untrack(() => autoEdit));
-  // Esc leaves the editor with the keyboard still on this cell (SPEC §9.5); clicking
+  // Esc leaves the editor with the keyboard still on this cell; clicking
   // elsewhere doesn't take it back.
   let refocus = false;
   const html = $derived(renderMarkdown(source));
@@ -57,7 +57,7 @@
   }
 </script>
 
-<!-- Prose first (SPEC §9.3). While editing, the text stays where it was and an
+<!-- Prose first. While editing, the text stays where it was and an
      accent bar in the margin marks the cell. Its ⋮ sits in the right margin. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="group relative" data-cell {onkeydown}>

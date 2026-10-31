@@ -22,7 +22,7 @@
   import SessionNotice from "./SessionNotice.svelte";
   import ShellCell from "./ShellCell.svelte";
 
-  // onrename: the title also names the file, so editing it renames the runbook (SPEC §8).
+  // onrename: the title also names the file, so editing it renames the runbook.
   // mtime: when it was last saved, for "Edited …"; null while unknown.
   const {
     runbook,
@@ -37,7 +37,7 @@
   // takes the focus.
   let added: string | null = $state(null);
 
-  // Every edit goes through the runbook store, which autosaves it (SPEC §8).
+  // Every edit goes through the runbook store, which autosaves it.
   function edit(change: (runbook: Runbook) => Runbook): void {
     runbooks.edit(runbook.path, change);
   }
@@ -102,7 +102,7 @@
   }
 </script>
 
-<!-- The note (SPEC §9.3): notices, then "Edited …" and the session, the title,
+<!-- The note: notices, then "Edited …" and the session, the title,
      the tags, and the cells. -->
 <article
   class="mx-auto max-w-[776px] px-12 pt-12 pb-24 max-[1000px]:px-7 max-[1000px]:pt-7 max-[1000px]:pb-16"

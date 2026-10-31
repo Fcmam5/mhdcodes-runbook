@@ -1,4 +1,4 @@
-// The API exposed to the renderer as `window.api` (SPEC §7). Type-only so both sides can share it.
+// The API exposed to the renderer as `window.api`. Type-only so both sides can share it.
 import type {
   CellRunStatus,
   DiskState,
@@ -31,7 +31,7 @@ export interface Api {
   listRunbooks: () => Promise<RunbookSummary[]>;
   readRunbook: (path: string) => Promise<Runbook>;
   getSettings: () => Promise<Settings>;
-  // How the file compares with what the app last read or wrote (SPEC §8).
+  // How the file compares with what the app last read or wrote.
   checkRunbook: (path: string) => Promise<DiskState>;
   // Atomic write. "changed" or "missing": the file changed or went away outside the app
   // since, so it wasn't written; `force` writes it anyway.

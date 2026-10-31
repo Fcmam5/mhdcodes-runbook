@@ -13,7 +13,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
 
-  // A popup menu (SPEC §9.2, §9.3): the cell's ⋮ and a runbook's ⋮ or right-click.
+  // A popup menu: the cell's ⋮ and a runbook's ⋮ or right-click.
   // The owner places it and closes it: on a choice, Esc, or a click outside.
   const { items, onchoose }: { items: MenuItem[]; onchoose: () => void } = $props();
 

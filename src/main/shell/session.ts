@@ -1,4 +1,4 @@
-// One persistent bash per runbook, driven over a pty (SPEC §6). No Electron imports:
+// One persistent bash per runbook, driven over a pty. No Electron imports:
 // it reports everything as events, so it is tested against real bash in plain Node.
 
 import { EventEmitter } from "node:events";
@@ -19,7 +19,7 @@ export interface ShellSessionOptions {
   shell?: string;
   cols?: number; // default 120
   rows?: number; // default 30
-  readyTimeoutMs?: number; // default 10 s (SPEC §6.3.1)
+  readyTimeoutMs?: number; // default 10 s
 }
 
 // The startup output kept for the "didn't start" notice; the notice shows its first lines.
@@ -158,7 +158,7 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
   }
 
   // Kills bash and everything still running under it: the command it was running,
-  // and that command's children (SPEC §6.3.8).
+  // and that command's children.
   private kill(): void {
     if (!this.pty) return;
     endTree(this.pty.pid);
@@ -294,12 +294,12 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
     const run = this.current;
     this.current = null;
     // Unlike a run's own exit code, the shell's exit status means failure even if 0
-    // (SPEC §6.3.7), unless the user had asked for a stop.
+    //, unless the user had asked for a stop.
     if (run) this.settle(run, run.stopRequested ? "interrupted" : "failed", exitCode);
     this.die({ type: "exited", exitCode });
   }
 
-  // Marks the session dead on its own, rejecting the runs still waiting (SPEC §6.3.7).
+  // Marks the session dead on its own, rejecting the runs still waiting.
   // Each is reported idle first: one shown as queued would otherwise stay queued.
   private die(end: SessionEnd): void {
     const message = end.type === "start-failed" ? "Shell didn't start" : "Shell session ended";
@@ -332,7 +332,7 @@ export class ShellSession extends EventEmitter<ShellSessionEvents> {
   }
 }
 
-// Exit 130 is a Ctrl+C, whether from Stop or typed into the pane (SPEC §6.3.5). After
+// Exit 130 is a Ctrl+C, whether from Stop or typed into the pane. After
 // a stop, any exit counts: the cell may catch Ctrl+C and exit with a code of its own.
 function endState(run: Run, exitCode: number): RunState {
   if (run.stopRequested || exitCode === 130) return "interrupted";

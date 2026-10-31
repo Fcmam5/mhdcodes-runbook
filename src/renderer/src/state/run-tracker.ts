@@ -1,5 +1,5 @@
 // Runs and sessions in the renderer: the run store plus each cell's output pane, fed
-// by the main process's events whether or not the runbook is shown (SPEC §6.6).
+// by the main process's events whether or not the runbook is shown.
 // Components read the store and call the actions; they own none of this state, so
 // switching runbooks loses nothing.
 //
@@ -55,7 +55,7 @@ export interface RunTracker<P extends TrackedPane> {
   closeSession(runbookPath: string): Promise<void>;
   // Frees everything kept for a deleted cell: its pane and its run-store entry.
   forgetCell(runbookPath: string, cellId: string): void;
-  // Moves a renamed runbook's panes and run state to its new path (SPEC §6.6). Call it
+  // Moves a renamed runbook's panes and run state to its new path. Call it
   // as soon as main's rename reply arrives, before awaiting anything else.
   renameRunbook(from: string, to: string): void;
   // Frees everything kept for a deleted runbook.
@@ -116,7 +116,7 @@ export function createRunTracker<P extends TrackedPane>(
     const existing = existingPane(runbookPath, cellId);
     if (existing) return existing;
     const pane = createPane({
-      // Only the running cell's pane types into the shell (SPEC §6.3.6).
+      // Only the running cell's pane types into the shell.
       onInput: (data) => {
         const path = currentPath(runbookPath);
         if (isRunning(path, cellId)) void api.sendInput(path, data);

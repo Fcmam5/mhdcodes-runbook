@@ -2,7 +2,7 @@ import { renameSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { isNotFound } from "./fs";
 
-// The window's size and position, remembered across launches (SPEC §9.4).
+// The window's size and position, remembered across launches.
 // x and y are missing when the position isn't known or wouldn't be on screen;
 // the window is then centred.
 export interface WindowState {

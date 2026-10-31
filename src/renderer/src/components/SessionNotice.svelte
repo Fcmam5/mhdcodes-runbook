@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import Icon from "./Icon.svelte";
 
-  // A notice at the top of the runbook about its shell session (SPEC §6.3, §9.3): what
+  // A notice at the top of the runbook about its shell session: what
   // happened and what happens next, with the first lines of output when there are some.
   const {
     details,

@@ -1,5 +1,5 @@
-// Marks the words in a search snippet that the search matched, for the sidebar (SPEC
-// §9.2). The terms come with each result: the indexed words it matched, so a prefix
+// Marks the words in a search snippet that the search matched, for the sidebar. The
+// terms come with each result: the indexed words it matched, so a prefix
 // ("pipew") or a typo ("pipwire") marks the word it found ("pipewire"). Pure.
 
 export interface Part {

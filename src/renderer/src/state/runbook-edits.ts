@@ -1,4 +1,4 @@
-// The edits the runbook view makes (SPEC §9.3), as pure functions from a runbook to
+// The edits the runbook view makes, as pure functions from a runbook to
 // a new one. The old one is never changed, so a store holding it sees a new value.
 
 import { createCell } from "../../../shared/runbook";
@@ -27,7 +27,7 @@ export function deleteCell(runbook: Runbook, cellId: string): Runbook {
   return { ...runbook, cells: runbook.cells.filter((cell) => cell.id !== cellId) };
 }
 
-// A blank title keeps the old one: every runbook has a title (SPEC §4).
+// A blank title keeps the old one: every runbook has a title.
 export function setTitle(runbook: Runbook, title: string): Runbook {
   const trimmed = title.trim();
   return trimmed === "" || trimmed === runbook.title ? runbook : { ...runbook, title: trimmed };

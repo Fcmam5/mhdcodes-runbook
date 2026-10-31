@@ -1,6 +1,6 @@
 // Ends a shell's commands along with it. Killing bash alone leaves the command it was
-// running, and anything that command started, alive and reparented (SPEC §6.3.8:
-// a restart must not leave a server holding its port). No Electron imports.
+// running, and anything that command started, alive and reparented, and a
+// restart must not leave a server holding its port. No Electron imports.
 
 import { execFileSync } from "node:child_process";
 

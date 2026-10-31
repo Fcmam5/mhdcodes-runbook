@@ -1,4 +1,4 @@
-// Full-text search over the runbooks (SPEC §9.2): an in-memory minisearch index of
+// Full-text search over the runbooks: an in-memory minisearch index of
 // each runbook's title, tags and cell sources, kept current by the IPC handlers as
 // runbooks are saved, created, renamed and deleted. No Electron imports.
 

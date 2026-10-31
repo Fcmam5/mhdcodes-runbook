@@ -13,7 +13,7 @@ import { loadWindowState } from "./window-state";
 const APP_ID = "codes.mhd.runbook";
 app.setPath("userData", join(app.getPath("appData"), APP_ID));
 
-// The app is dark only (SPEC §9.4); this also darkens native menus and dialogs.
+// The app is dark only; this also darkens native menus and dialogs.
 nativeTheme.themeSource = "dark";
 
 // Block in-page navigation away from the app.
@@ -38,7 +38,7 @@ if (!app.requestSingleInstanceLock()) {
     rcfilePath: join(app.getPath("userData"), "rcfile.bash"),
   });
 
-  // Kill the shells and remove the run scripts' temp folder before quitting (SPEC §6.3.9).
+  // Kill the shells and remove the run scripts' temp folder before quitting.
   let quitting = false;
   app.on("will-quit", (event) => {
     if (quitting) return;

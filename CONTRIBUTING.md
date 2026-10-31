@@ -36,9 +36,8 @@ Electron (about 100 MB).
 
 Runbook is an [Electron](https://www.electronjs.org) app, with the interface in
 [Svelte 5](https://svelte.dev), [CodeMirror](https://codemirror.net) for editing and
-[xterm.js](https://xtermjs.org) for output. [SPEC.md](./SPEC.md) describes it in full: the
-file format, the shell sessions and the interface. [CONTEXT.md](./CONTEXT.md) defines the
-terms the code uses.
+[xterm.js](https://xtermjs.org) for output. [CONTEXT.md](./CONTEXT.md) defines the terms the
+code uses.
 
 - `src/main` is the main process: runbook files, search, settings and the window.
   `src/main/shell` runs one bash per runbook over node-pty, with no Electron imports, so it's
@@ -59,8 +58,8 @@ import. The tests run in Node, which is why `renderer/src/state/` must stay free
 To add an IPC call:
 
 1. Register a handler in `src/main/ipc.ts`: `ipcMain.handle("ns:action", (_e, arg: unknown) => ...)`.
-   Check every argument there; a runbook path goes through `resolveRunbookPath`
-   ([SPEC §7](./SPEC.md#7-ipc-contract)).
+   Check every argument there; a runbook path goes through `resolveRunbookPath`, which
+   accepts only `.md` files directly inside the runbooks folder.
 2. Add the method to the `Api` interface in `src/preload/api.ts`.
 3. Implement it in `src/preload/index.ts` as an explicit function:
    `action: (arg) => ipcRenderer.invoke("ns:action", arg)`. Never expose `ipcRenderer` itself.

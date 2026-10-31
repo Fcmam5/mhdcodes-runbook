@@ -30,7 +30,7 @@ export interface CellRunStatus {
 
 export type SessionState = "starting" | "ready" | "busy" | "dead";
 
-// Why a session became dead on its own (SPEC §6.3.1, §6.3.7), for the runbook's notice.
+// Why a session became dead on its own, for the runbook's notice.
 export type SessionEnd =
   | { type: "start-failed"; output: string } // the first output, to help find the cause
   | { type: "exited"; exitCode: number };
@@ -48,11 +48,11 @@ export interface Settings {
   runbooksDir: string; // absolute path
 }
 
-// A runbook's file compared with what the app last read or wrote (SPEC §8): changed by
+// A runbook's file compared with what the app last read or wrote: changed by
 // another editor, git or a cell; or moved away or deleted.
 export type DiskState = "same" | "changed" | "missing";
 
-// A search hit for the sidebar (SPEC §7, §9.2).
+// A search hit for the sidebar.
 export interface SearchResult {
   path: string;
   title: string;

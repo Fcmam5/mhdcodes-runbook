@@ -1,4 +1,4 @@
-// The status row in a shell cell, between its command and its output (SPEC §9.3),
+// The status row in a shell cell, between its command and its output,
 // e.g. ✓ "exit 0" "· 1.2s". Pure, so it is unit tested.
 import type { CellRunStatus } from "../../../shared/types";
 

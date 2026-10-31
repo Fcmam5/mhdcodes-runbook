@@ -1,4 +1,4 @@
-// IPC handlers behind `window.api` (SPEC §7). Validation lives in the modules they call.
+// IPC handlers behind `window.api`. Validation lives in the modules they call.
 
 import { BrowserWindow, ipcMain, shell } from "electron";
 import type { Settings } from "../shared/types";
@@ -49,7 +49,7 @@ export function registerIpc(settings: Settings, sessions: SessionManager): void 
     const from = resolveRunbookPath(settings.runbooksDir, path);
     const renamed = await renameRunbook(settings.runbooksDir, from, title);
     index.rename(from, renamed);
-    // A running cell keeps running in the renamed runbook (SPEC §6.6).
+    // A running cell keeps running in the renamed runbook.
     sessions.rename(from, renamed.path);
     return renamed;
   });

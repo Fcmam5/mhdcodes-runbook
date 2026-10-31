@@ -2,7 +2,7 @@
   import type { CellType } from "../../../shared/types";
   import Icon from "./Icon.svelte";
 
-  // "+ Markdown" / "+ Shell" (SPEC §9.3). Between cells it fills the gap between them
+  // "+ Markdown" / "+ Shell". Between cells it fills the gap between them
   // (`gap`, its height class), with a line and the two buttons shown on hover or keyboard
   // focus. The bar is taller than the gap, so only its buttons take the pointer, and only
   // while shown: the rest of it would cover the cells' edges, and keep itself shown over

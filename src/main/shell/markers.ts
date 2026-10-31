@@ -1,5 +1,5 @@
 // Splits pty output into plain data and the OSC 777 markers the rcfile prints
-// (`ESC ] 777 ; rb-… BEL`, SPEC §6.3). Markers can arrive split across chunks, so an
+// (`ESC ] 777 ; rb-… BEL`). Markers can arrive split across chunks, so an
 // incomplete one at the end of a chunk is held back until the rest arrives.
 
 export type Marker =

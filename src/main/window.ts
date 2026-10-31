@@ -33,9 +33,10 @@ export function createWindow(saved: WindowState | null, windowStateFile: string)
     if (isMainFrame) win.show();
   });
 
-  // Remember the window's size and position for the next launch (SPEC §9.4). The
+  // Remember the window's size and position for the next launch. The
   // normal bounds, so a maximized window comes back at its unmaximized size. Being
-  // maximized isn't restored: see SPEC §9.4.
+  // maximized isn't restored: on GNOME under X11 the window manager often undoes a
+  // maximize sent just after the window is shown, and only an arbitrary delay helped.
   win.once("close", () => {
     const { x, y, width, height } = win.getNormalBounds();
     try {
@@ -45,7 +46,7 @@ export function createWindow(saved: WindowState | null, windowStateFile: string)
     }
   });
 
-  // Autosave waits 500 ms after an edit (SPEC §8), so ask the renderer to save what is
+  // Autosave waits 500 ms after an edit, so ask the renderer to save what is
   // still pending before the window goes. A renderer that doesn't answer (crashed,
   // still loading) gets 3 s.
   let flushed = false;

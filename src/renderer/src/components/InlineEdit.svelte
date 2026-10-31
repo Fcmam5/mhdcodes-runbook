@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  // Text shown as-is until clicked, then edited in place (SPEC §9.3: title and tags).
+  // Text shown as-is until clicked, then edited in place: a runbook's title and tags.
   // Enter or clicking away keeps the change; Esc drops it. The field takes the shown
   // text's size, so nothing moves when editing starts. After Enter or Esc the keyboard
   // is back on the text; `focusKey` marks it for whoever has to put it back later.

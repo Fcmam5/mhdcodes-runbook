@@ -1,4 +1,4 @@
-// Converts between a runbook's Markdown text and a `Runbook` (SPEC §5).
+// Converts between a runbook's Markdown text and a `Runbook`.
 // Pure: no Node or Electron imports, so it runs in main, renderer and tests alike.
 
 import MarkdownIt from "markdown-it";

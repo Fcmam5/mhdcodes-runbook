@@ -19,7 +19,7 @@
   let error: string | null = $state(null);
   let sidebar: ReturnType<typeof Sidebar> | undefined = $state();
 
-  // Window-wide shortcuts (SPEC §9.5). Not inside a running cell's output pane: there
+  // Window-wide shortcuts. Not inside a running cell's output pane: there
   // Ctrl+N and Ctrl+K are bash's own keys (previous command, kill to end of line).
   function onkeydown(event: KeyboardEvent): void {
     const ctrl = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey;
@@ -53,7 +53,7 @@
   );
 
   async function open(path: string): Promise<void> {
-    // Save the runbook being left now, rather than in up to 500 ms (SPEC §8).
+    // Save the runbook being left now, rather than in up to 500 ms.
     if (selected !== null && selected !== path) void openRunbooks.flush(selected).catch(() => {});
     selected = path;
     // Each runbook is kept as first opened and reused on return. Cells without an
@@ -115,7 +115,7 @@
     }
   }
 
-  // Renames the file after the title and updates the title (SPEC §8); from the sidebar
+  // Renames the file after the title and updates the title; from the sidebar
   // and from the runbook's own title. Resolves with the new path, or null if it failed.
   async function rename(path: string, title: string): Promise<string | null> {
     try {
@@ -150,7 +150,7 @@
     }
   }
 
-  // The two ways out of a conflict (SPEC §8): take the file as it is now, dropping the
+  // The two ways out of a conflict: take the file as it is now, dropping the
   // window's unsaved edits, or write the window's copy over it.
   async function readFromDisk(path: string): Promise<void> {
     try {

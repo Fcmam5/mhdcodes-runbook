@@ -37,7 +37,7 @@
   // ~/Runbooks rather than /home/someone/Runbooks.
   const shownFolder = $derived(folder.replace(/^\/home\/[^/]+(?=\/|$)/, "~"));
 
-  // Search (SPEC §9.2): an empty query shows every runbook; otherwise the results,
+  // Search: an empty query shows every runbook; otherwise the results,
   // each with a one-line snippet. Queries wait 150 ms after the last keystroke.
   let query = $state("");
   let results = $state<SearchResult[] | null>(null);
@@ -80,7 +80,7 @@
 
   let searchInput: HTMLInputElement | undefined = $state();
 
-  // Ctrl+K (SPEC §9.5).
+  // Ctrl+K.
   export function focusSearch(): void {
     searchInput?.focus();
     searchInput?.select();
@@ -102,7 +102,7 @@
     else void refocus("new-runbook");
   }
 
-  // "+ New" shows an inline title input (SPEC §9.2).
+  // "+ New" shows an inline title input.
   let creating = $state(false);
   let newTitle = $state("");
   let beforeCreate: HTMLElement | null = null;

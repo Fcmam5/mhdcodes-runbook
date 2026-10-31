@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-/* The Graphite design (SPEC §9): a calm page, few borders, areas told apart by
-   tone. The editors and the output pane use the same values. Dark only (SPEC §9.4). */
+/* The Graphite design: a calm page, few borders, areas told apart by
+   tone. The editors and the output pane use the same values. Dark only. */
 @theme {
   --font-sans: system-ui, sans-serif;
   --font-mono: "Ubuntu Mono", "DejaVu Sans Mono", monospace;

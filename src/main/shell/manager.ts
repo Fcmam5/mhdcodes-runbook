@@ -1,4 +1,4 @@
-// One ShellSession per runbook path, created on the first run (SPEC §6, §6.6).
+// One ShellSession per runbook path, created on the first run.
 
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -86,7 +86,7 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     this.sessions.get(runbookPath)?.resize(cols, rows);
   }
 
-  // Kills the runbook's shell and starts a fresh one (SPEC §6.3.8). The running cell
+  // Kills the runbook's shell and starts a fresh one. The running cell
   // ends interrupted and queued runs are dropped.
   async restart(runbookPath: string): Promise<void> {
     if (this.disposed) throw new Error("Shell sessions are shut down");
@@ -96,7 +96,7 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
     this.createSession(runbookPath, tempRoot);
   }
 
-  // Moves the runbook's session to its new path, without restarting it (SPEC §6.6).
+  // Moves the runbook's session to its new path, without restarting it.
   rename(from: string, to: string): void {
     if (from === to) return;
     for (const request of this.preparing) {

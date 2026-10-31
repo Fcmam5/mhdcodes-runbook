@@ -7,7 +7,6 @@ Issues and specs live as local markdown files under `.github/issues/`.
 ### Conventions
 
 - All issues live directly in `.github/issues/`, one directory for the whole project
-- The spec is `SPEC.md` or `.github/issues/spec.md`
 - Implementation issues are one file per ticket at `.github/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
 - Every issue file starts with its title and a header block, exactly in this shape (plain lines, no bold), so one command can read them all:
 

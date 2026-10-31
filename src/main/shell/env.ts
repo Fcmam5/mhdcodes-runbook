@@ -1,4 +1,4 @@
-// The environment for user shells (SPEC §6.1): the app's own, minus what Electron, the
+// The environment for user shells: the app's own, minus what Electron, the
 // dev tooling and an AppImage launcher add.
 
 import { posix } from "node:path";
