@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Runbook: run it again</title>
+    <meta
+      name="description"
+      content="Markdown notes with shell cells you can run, one bash session per runbook. Free, for Linux."
+    />
+    <meta name="theme-color" content="#141217" />
+    <link rel="icon" href="favicon.svg" />
+    <link rel="stylesheet" href="tailwind.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400..900&family=JetBrains+Mono:wght@400;500&family=Caveat:wght@600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body id="top" class="min-h-screen bg-page font-sans text-ink">
+    <header class="border-b border-rule">
+      <nav class="wrap flex h-16 items-center gap-6">
+        <a href="#top" class="text-[20px] font-black tracking-[-0.02em]"
+          >runbook<span class="text-acc">.</span></a
+        >
+        <div class="ml-auto flex items-center gap-3">
+          <a
+            href="https://github.com/mhdcodes/runbook"
+            class="inline-flex h-10 items-center gap-[6px] rounded-[10px] border border-line px-[14px] text-[14px] transition-colors hover:bg-raised max-[360px]:hidden"
+            >GitHub
+            <svg
+              aria-hidden="true"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M7 17L17 7"></path>
+              <path d="M8 7h9v9"></path>
+            </svg>
+          </a>
+          <a
+            href="#download"
+            class="fill inline-flex h-10 items-center rounded-[10px] px-4 text-[14px]"
+            >Download</a
+          >
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="wrap flex flex-wrap items-center gap-14 pb-24 pt-[88px]">
+        <div class="min-w-0 flex-[1_1_440px]">
+          <div
+            class="mb-1 ml-1 origin-bottom-left -rotate-[4deg] font-hand text-[34px] font-semibold text-acc"
+          >
+            fixed it once?
+          </div>
+          <h1
+            class="text-[clamp(64px,9vw,116px)] font-black uppercase leading-[0.86] tracking-[-0.035em]"
+          >
+            Run it<br />again<span class="text-acc">.</span>
+          </h1>
+          <p class="mt-8 max-w-[30ch] text-pretty text-[20px] leading-[1.5] text-body">
+            Markdown notes with shell cells you can run. Write the fix down once, then press play
+            next time.
+          </p>
+          <div class="mt-9 flex flex-wrap gap-3">
+            <a href="#download" class="pill fill h-[52px] gap-[10px] px-6 text-[16px]">
+              <svg
+                aria-hidden="true"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 4v12"></path>
+                <path d="M6 11l6 6 6-6"></path>
+                <path d="M5 20h14"></path>
+              </svg>
+              Download for Linux
+            </a>
+            <a
+              href="https://github.com/mhdcodes/runbook"
+              class="pill outline-btn h-[52px] px-[22px] text-[16px]"
+              >View source</a
+            >
+          </div>
+          <div class="mt-[22px] font-mono text-[13px] text-faint">Free · MIT licence · x86-64</div>
+        </div>
+
+        <!-- the app, as it looks with a runbook open -->
+        <div class="min-w-0 flex-[1_1_520px]">
+          <div
+            class="overflow-hidden rounded-2xl border border-line bg-card shadow-[0_40px_80px_-30px_rgba(0,0,0,0.7)]"
+          >
+            <div class="flex h-11 items-center border-b border-rule px-4 text-[13px] text-faint">
+              <span class="font-bold text-ink">runbook<span class="text-acc">.</span></span>
+              <span class="ml-auto inline-flex items-center gap-2 font-mono text-[12px]"
+                ><span class="h-[7px] w-[7px] rounded-full bg-ok"></span>Shell ready</span
+              >
+            </div>
+            <div class="flex">
+              <div
+                class="box-content flex flex-[0_0_170px] flex-col gap-[2px] border-r border-rule px-[10px] py-[14px] font-mono text-[12px] text-faint max-[720px]:hidden"
+              >
+                <div class="px-[10px] pb-[10px] pt-1 text-[11px] uppercase tracking-[0.08em]">
+                  ~/Runbooks
+                </div>
+                <div class="side-item">Welcome.md</div>
+                <div class="side-item bg-raised text-ink">fix-audio.md</div>
+                <div class="side-item">renew-tls.md</div>
+                <div class="side-item">new-laptop.md</div>
+              </div>
+              <div class="flex min-w-0 flex-auto flex-col gap-[14px] px-6 pb-7 pt-6">
+                <div class="text-pretty text-[22px] font-extrabold tracking-[-0.01em]">
+                  Fix audio after a kernel update
+                </div>
+                <p class="text-pretty text-[14px] leading-[1.55] text-muted">
+                  Restart the user audio stack, then check which sink came back.
+                </p>
+
+                <div class="app-cell">
+                  <div class="app-cell-row">
+                    <button type="button" class="run" aria-label="Run cell">
+                      <svg
+                        aria-hidden="true"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M6 4l14 8-14 8z"></path>
+                      </svg>
+                    </button>
+                    <pre
+                      class="cmd"
+                    ><span class="text-acc">systemctl</span> --user restart pipewire</pre>
+                  </div>
+                </div>
+
+                <div class="app-cell">
+                  <div class="app-cell-row">
+                    <button type="button" class="run" aria-label="Run cell">
+                      <svg
+                        aria-hidden="true"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M6 4l14 8-14 8z"></path>
+                      </svg>
+                    </button>
+                    <pre class="cmd"><span class="text-acc">pactl</span> get-default-sink</pre>
+                  </div>
+                  <pre
+                    class="whitespace-pre-wrap break-words bg-term px-[14px] py-[10px] font-mono text-[12px] leading-[1.6] text-muted"
+                  >
+alsa_output.pci-0000_00_1f.3.analog-stereo</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="border-t border-rule">
+        <div class="wrap py-24">
+          <div class="font-mono text-[13px] tracking-[0.04em] text-acc">// how it works</div>
+          <h2
+            class="mt-3 max-w-[16ch] text-[clamp(36px,5vw,56px)] font-black uppercase leading-[0.95] tracking-[-0.03em]"
+          >
+            A real terminal, inside your notes.
+          </h2>
+
+          <div class="mt-14 grid grid-cols-[repeat(auto-fit,minmax(min(300px,100%),1fr))] gap-5">
+            <article class="feature">
+              <div>
+                <div class="font-mono text-[12px] text-faint">01</div>
+                <h3>One shell per note</h3>
+                <p>A <code>cd</code> or an <code>export</code> still holds in the next cell.</p>
+              </div>
+              <div class="mt-auto flex flex-col gap-2">
+                <div class="term term-row">
+                  <pre class="cmd"><span class="text-acc">cd</span> ~/Runbooks</pre>
+                  <span class="exit">exit 0</span>
+                </div>
+                <div class="term">
+                  <div class="term-row">
+                    <pre class="cmd"><span class="text-acc">pwd</span></pre>
+                    <span class="exit">exit 0</span>
+                  </div>
+                  <pre class="term-out">/home/you/Runbooks</pre>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature">
+              <div>
+                <div class="font-mono text-[12px] text-faint">02</div>
+                <h3>Answers prompts</h3>
+                <p>Type a sudo password or a <code>[Y/n]</code> straight into the output.</p>
+              </div>
+              <div class="term mt-auto">
+                <div class="term-row">
+                  <pre class="cmd"><span class="text-acc">sudo</span> apt upgrade</pre>
+                  <span class="exit">exit 0</span>
+                </div>
+                <pre
+                  class="term-out whitespace-pre-wrap leading-[1.7]"
+                >[sudo] password for you: <span class="text-ink">••••••••</span>
+Do you want to continue? <span class="whitespace-nowrap">[Y/n] <span class="text-acc">y</span></span>
+0 upgraded, 0 newly installed.</pre>
+              </div>
+            </article>
+
+            <article class="feature">
+              <div>
+                <div class="font-mono text-[12px] text-faint">03</div>
+                <h3>Plain files</h3>
+                <p>Runbooks are <code>.md</code> files in a folder, ready for git.</p>
+              </div>
+              <div class="term mt-auto">
+                <div class="term-row">
+                  <pre class="cmd"><span class="text-acc">git</span> log --oneline -2</pre>
+                  <span class="exit">exit 0</span>
+                </div>
+                <pre
+                  class="term-out leading-[1.7]"
+                ><span class="block pl-[8ch] indent-[-8ch]"><span class="text-hash">a1b2c3d</span> Fix audio after a kernel update</span><span class="block pl-[8ch] indent-[-8ch]"><span class="text-hash">9f8e7d6</span> Renew the TLS certificate</span></pre>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="download" class="wrap scroll-mt-6 pb-24">
+        <div
+          class="flex flex-wrap gap-12 rounded-3xl border border-line bg-card p-[clamp(28px,5vw,64px)]"
+        >
+          <div class="min-w-0 flex-[1_1_360px]">
+            <h2
+              class="text-[clamp(min(44px,10.8vw),6vw,76px)] font-black uppercase leading-[0.9] tracking-[-0.035em]"
+            >
+              Download for Linux<span class="text-acc">.</span>
+            </h2>
+            <p class="mt-6 max-w-[34ch] text-pretty text-[17px] leading-[1.55] text-muted">
+              Free, for x86-64: Ubuntu 24.04 or newer, Debian, and other distributions.
+            </p>
+          </div>
+
+          <div class="flex min-w-0 flex-[1_1_460px] flex-col gap-4">
+            <div class="option border-edge bg-cell">
+              <div class="option-head">
+                <div>
+                  <div class="flex flex-wrap items-center gap-x-[10px] gap-y-1">
+                    <span class="option-name">Ubuntu and Debian</span>
+                    <span
+                      class="rounded-full bg-acc-soft px-2 py-[3px] font-mono text-[11px] text-acc"
+                      >Recommended</span
+                    >
+                  </div>
+                  <div class="option-kind">.deb package</div>
+                </div>
+                <a
+                  href="https://github.com/mhdcodes/runbook/releases/latest/download/runbook-amd64.deb"
+                  class="pill fill h-12 gap-2 px-5 text-[15px]"
+                >
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 4v12"></path>
+                    <path d="M6 11l6 6 6-6"></path>
+                    <path d="M5 20h14"></path>
+                  </svg>
+                  Download .deb
+                </a>
+              </div>
+              <div>
+                <div class="option-hint">Then install it from your Downloads folder:</div>
+                <div class="install">
+                  <pre
+                    class="cmd"
+                  ><span class="text-acc">sudo</span> apt install <span class="inline-block">./runbook-amd64.deb</span></pre>
+                  <button type="button" class="copy">Copy</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="option border-line">
+              <div class="option-head">
+                <div>
+                  <div class="option-name">Other Linux</div>
+                  <div class="option-kind">.AppImage, no install needed</div>
+                </div>
+                <a
+                  href="https://github.com/mhdcodes/runbook/releases/latest/download/runbook-x86_64.AppImage"
+                  class="pill outline-btn h-12 gap-2 px-5 text-[15px]"
+                >
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 4v12"></path>
+                    <path d="M6 11l6 6 6-6"></path>
+                    <path d="M5 20h14"></path>
+                  </svg>
+                  Download .AppImage
+                </a>
+              </div>
+              <div>
+                <div class="option-hint">Make it executable, then run it:</div>
+                <div class="install">
+                  <pre
+                    class="cmd"
+                  ><span class="text-acc">chmod</span> +x <span class="inline-block">runbook-*.AppImage</span> &amp;&amp; <span class="inline-block">./runbook-*.AppImage</span></pre>
+                  <button type="button" class="copy">Copy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-rule">
+      <div class="wrap flex flex-wrap items-center gap-3 py-7 text-[13px] text-faint">
+        <span class="text-[16px] font-black text-ink">runbook<span class="text-acc">.</span></span>
+        <span>Free and open source, MIT licence</span>
+        <a
+          href="https://github.com/mhdcodes/runbook"
+          class="ml-auto font-mono text-[12px] text-muted underline transition-colors hover:text-ink"
+          >github.com/mhdcodes/runbook</a
+        >
+      </div>
+    </footer>
+
+    <script>
+      // Copy puts the command beside the button on the clipboard and says so for a moment.
+      // Without clipboard access it does nothing.
+      for (const button of document.querySelectorAll(".copy")) {
+        let reset;
+        button.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(button.previousElementSibling.textContent);
+          } catch {
+            return;
+          }
+          button.textContent = "Copied";
+          button.dataset.copied = "";
+          clearTimeout(reset);
+          reset = setTimeout(() => {
+            button.textContent = "Copy";
+            delete button.dataset.copied;
+          }, 1600);
+        });
+      }
+    </script>
+  </body>
+</html>

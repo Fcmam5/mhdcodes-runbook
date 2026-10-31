@@ -1,0 +1,140 @@
+/* The source for tailwind.css: Tailwind's layers plus the page's own components. */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --accent: #ff8fb1;
+    --accent-soft: rgba(255, 143, 177, 0.14);
+    /* dark scrollbars and form controls, to match the page */
+    color-scheme: dark;
+  }
+  /* The design sets each line height it cares about; the rest use the font's own. */
+  body {
+    @apply leading-[normal] antialiased;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+@layer components {
+  /* content at most 1200px wide, inside 24px gutters */
+  .wrap {
+    @apply mx-auto max-w-[1248px] px-6;
+  }
+
+  /* buttons and button-like links: a pill, filled with the accent or outlined */
+  .pill {
+    @apply inline-flex items-center rounded-full;
+  }
+  .fill {
+    @apply bg-acc font-bold text-on-acc transition-colors;
+  }
+  .fill:hover {
+    background-color: color-mix(in srgb, var(--accent) 85%, white);
+  }
+  .outline-btn {
+    @apply border border-edge font-semibold text-ink transition-colors hover:bg-raised;
+  }
+
+  /* the app window in the hero */
+  .side-item {
+    @apply rounded-md px-[10px] py-2;
+  }
+  .app-cell {
+    @apply overflow-hidden rounded-xl border border-line bg-cell;
+  }
+  .app-cell-row {
+    @apply flex items-center gap-[10px] px-[10px] py-2;
+  }
+  .run {
+    @apply grid h-8 w-8 flex-none cursor-pointer place-items-center rounded-lg border-none bg-acc-soft p-0 text-acc;
+  }
+
+  /* A command and its exit status, and the output below it. Commands and output wrap
+     rather than scroll, so no box on the page grows a scrollbar. */
+  .cmd {
+    @apply min-w-0 whitespace-pre-wrap break-words font-mono text-[13px] text-ink;
+  }
+  .exit {
+    @apply ml-auto flex-none whitespace-nowrap font-mono text-[11px] text-ok;
+  }
+  .term {
+    @apply overflow-hidden rounded-[10px] border border-line bg-term;
+  }
+  .term-row {
+    @apply flex items-center gap-[10px] px-[14px] py-3;
+  }
+  .term-out {
+    @apply whitespace-pre-wrap break-words border-t border-split px-[14px] py-[10px] font-mono text-[12px] text-muted;
+  }
+
+  /* the feature cards */
+  .feature {
+    @apply flex flex-col gap-5 rounded-[18px] border border-rule bg-card p-7;
+  }
+  .feature h3 {
+    @apply mb-2 mt-[10px] text-[22px] font-extrabold tracking-[-0.01em];
+  }
+  .feature p {
+    @apply text-pretty text-[15px] leading-[1.55] text-muted;
+  }
+  .feature p code {
+    @apply font-mono text-[13px] text-ink;
+  }
+
+  /* the two downloads, each with its install command */
+  .option {
+    @apply flex flex-col gap-4 rounded-2xl border p-5;
+    container-type: inline-size;
+  }
+  .option-head {
+    @apply flex flex-wrap items-center gap-4;
+  }
+  .option-head > :first-child {
+    @apply flex-[1_1_200px];
+  }
+  .option-name {
+    @apply text-[19px] font-extrabold;
+  }
+  .option-kind {
+    @apply mt-1 font-mono text-[13px] text-faint;
+  }
+  .option-hint {
+    @apply mb-2 text-[13px] text-faint;
+  }
+  /* On a narrow screen the Copy button drops below the command, so the command keeps the
+     box's full width. File names are inline blocks in the markup, so a command only wraps
+     between words, never at a hyphen inside one. */
+  .install {
+    @apply flex flex-wrap items-center gap-x-3 rounded-[10px] border border-line bg-term py-[6px] pl-[14px] pr-[6px];
+  }
+  .install pre {
+    @apply flex-[1_1_220px] py-[9px] pr-2;
+  }
+  .copy {
+    @apply ml-auto h-9 min-w-[76px] flex-none cursor-pointer rounded-lg border border-edge bg-raised px-3 font-sans text-[13px] font-semibold text-ink transition-colors hover:bg-line data-[copied]:text-ok;
+  }
+}
+
+/* Both download cards put their button under the title at the same width: where "Ubuntu and
+   Debian" with its badge (about 280px) and Download .deb no longer fit on one line. Below it
+   the title, or the .AppImage card's longer button, would wrap anyway. */
+@container (width < 470px) {
+  .option-head > :first-child {
+    flex-basis: 100%;
+  }
+}
+
+:focus-visible {
+  @apply outline outline-[3px] outline-offset-[3px] outline-acc;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

@@ -180,6 +180,23 @@ To add an IPC call:
 - [Electron Fuses](https://www.electronjs.org/docs/latest/tutorial/fuses) are set at package
   time: see `electronFuses` in [electron-builder.yml](./electron-builder.yml).
 
+## Website
+
+`website` is the landing page: plain HTML styled with [Tailwind](https://tailwindcss.com).
+Its stylesheet, `tailwind.css`, is built from `style.css` and the classes in `index.html`, and is
+committed so the page needs no build step to serve. After changing either file, rebuild it:
+
+```sh
+npx tailwindcss@3.4.17 -c website/tailwind.config.js -i website/style.css -o website/tailwind.css --minify
+```
+
+Tailwind only includes the classes it finds in `index.html`, so a new class shows up unstyled
+until you rebuild.
+
+The download buttons link to `releases/latest/download/runbook-amd64.deb` and
+`…/runbook-x86_64.AppImage`, which GitHub redirects to the newest release. The release
+workflow uploads a copy of each file under those names, next to the versioned ones.
+
 ## License
 
 [MIT](./LICENSE)

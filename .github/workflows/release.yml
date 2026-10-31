@@ -53,6 +53,11 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # the same two files under names without the version, so the website can link to
+      # releases/latest/download/<name> and always get the newest release
+      - run: |
+          cp dist/runbook-*-amd64.deb dist/runbook-amd64.deb
+          cp dist/runbook-*-x86_64.AppImage dist/runbook-x86_64.AppImage
       - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
