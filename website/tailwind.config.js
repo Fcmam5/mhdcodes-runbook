@@ -1,7 +1,7 @@
-// Tailwind settings for the landing page. After changing classes in index.html or style.css,
-// rebuild tailwind.css with the command in the README.
+// Tailwind settings for the landing page. After changing classes in index.html, 404.html or style.css,
+// rebuild tailwind.css with the command in CONTRIBUTING.md.
 export default {
-  content: { relative: true, files: ["./index.html"] },
+  content: { relative: true, files: ["./index.html", "./404.html"] },
   theme: {
     extend: {
       // Dark surfaces, lightest last, and the brand pink. The accent lives in style.css as
