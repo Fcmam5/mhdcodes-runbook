@@ -315,7 +315,10 @@ async function writeAtomically(path: string, text: string): Promise<void> {
   );
   const temp = `${target}.tmp`;
   try {
-    await writeFile(temp, text, { mode });
+    // Remove a leftover first, then "wx": a symlink planted at the temp name must never
+    // be followed, or the write would land on whatever it points to.
+    await rm(temp, { force: true });
+    await writeFile(temp, text, { mode, flag: "wx" });
     await rename(temp, target);
   } catch (error) {
     await rm(temp, { force: true });

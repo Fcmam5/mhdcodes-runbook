@@ -240,6 +240,17 @@ describe("saveRunbook", () => {
     expect(await readFile(real, "utf8")).toContain("title: Through the link");
   });
 
+  it("doesn't follow a symlink planted at the temp file's name", async () => {
+    const runbook = await opened();
+    const victim = join(root, "victim");
+    await writeFile(victim, "untouched");
+    await symlink(victim, `${runbook.path}.tmp`);
+    await saveRunbook(dir, { ...runbook, title: "Saved" });
+    expect(await readFile(victim, "utf8")).toBe("untouched");
+    expect(await readFile(runbook.path, "utf8")).toContain("title: Saved");
+    expect(await readdir(dir)).toEqual(["notes.md"]);
+  });
+
   it("keeps the file's permissions", async () => {
     const runbook = await opened();
     await chmod(runbook.path, 0o600);
